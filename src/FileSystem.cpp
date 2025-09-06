@@ -60,8 +60,8 @@ std::string FileSystem::formatTime(const fs::file_time_type& time) {
 }
 
 std::string FileSystem::formatPermissions(const fs::perms& permissions) {
-    std::string result;
     
+    std::string result;    
     result += ((permissions & fs::perms::owner_read) != fs::perms::none) ? "r" : "-";
     result += ((permissions & fs::perms::owner_write) != fs::perms::none) ? "w" : "-";
     result += ((permissions & fs::perms::owner_exec) != fs::perms::none) ? "x" : "-";
