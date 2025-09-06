@@ -24,4 +24,5 @@ public:
     static std::string formatTime(const fs::file_time_type& time);
     static std::string formatPermissions(const fs::perms& permissions);
     static bool isHidden(const fs::path& path);
+    static uint64_t calculateDirectorySize(const fs::path& path);
 };

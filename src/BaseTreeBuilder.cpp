@@ -1,36 +1,91 @@
 #include "BaseTreeBuilder.h"
-#include <algorithm>
-#include <iostream>
+#include <functional>
+
+#define UNUSED(x) (void)(x)
 
 BaseTreeBuilder::BaseTreeBuilder(const std::string& rootPath) 
-    : rootPath_(rootPath) {
-    stats_ = Statistics{0, 0, 0};
-}
+    : rootPath_(rootPath) {}
 
 void BaseTreeBuilder::buildTree(bool showHidden) {
     treeLines_.clear();
     stats_ = Statistics{0, 0, 0};
     
-    if (!fs::exists(rootPath_)) {
-        throw std::runtime_error("Path does not exist: " + rootPath_.string());
-    }
-    
-    auto info = FileSystem::getFileInfo(rootPath_);
-    treeLines_.push_back(info.name + " (directory)");
+    // Добавляем корневую директорию
+    auto rootInfo = FileSystem::getFileInfo(rootPath_);
+    treeLines_.push_back("[DIR]");
     stats_.totalDirectories++;
     
-    traverseDirectory(rootPath_, "", true, showHidden);
+    // Обходим содержимое корневой директории (но не саму корневую директорию)
+    auto filter = [](const fs::directory_entry& entry, bool showHidden) {
+        return !FileSystem::isHidden(entry.path()) || showHidden;
+    };
+    
+    auto sort = [](const fs::directory_entry& a, const fs::directory_entry& b) {
+        if (a.is_directory() != b.is_directory()) {
+            return a.is_directory() > b.is_directory();
+        }
+        return a.path().filename().string() < b.path().filename().string();
+    };
+    
+    processDirectoryEntries(rootPath_, filter, sort, showHidden, "", true);
+}
+
+void BaseTreeBuilder::traverseDirectory(const fs::path& path, 
+                                     const std::string& prefix, 
+                                     bool isLast,
+                                     bool showHidden) {
+    if (path != rootPath_) {
+        auto info = FileSystem::getFileInfo(path);
+        std::string connector = isLast ? constants::TREE_LAST_BRANCH 
+                                     : constants::TREE_BRANCH;
+        
+        treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
+        stats_.totalDirectories++;
+    } else {
+        stats_.totalDirectories++;
+    }
+    
+    std::string newPrefix = prefix;
+    if (isLast) {
+        newPrefix += constants::TREE_SPACE;
+    } else {
+        newPrefix += constants::TREE_VERTICAL;
+    }
+    
+    auto filter = [](const fs::directory_entry& entry, bool showHidden) {
+        return !FileSystem::isHidden(entry.path()) || showHidden;
+    };
+    
+    auto sort = [](const fs::directory_entry& a, const fs::directory_entry& b) {
+        if (a.is_directory() != b.is_directory()) {
+            return a.is_directory() > b.is_directory();
+        }
+        return a.path().filename().string() < b.path().filename().string();
+    };
+    
+    processDirectoryEntries(path, filter, sort, showHidden, newPrefix, isLast);
+}
+
+bool BaseTreeBuilder::shouldIncludeFile(const fs::path& path, bool showHidden) const {
+    return !FileSystem::isHidden(path) || showHidden;
+}
+
+std::string BaseTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info, 
+                                         const std::string& connector) const {
+    UNUSED(connector);
+    
+    if (info.isDirectory) {
+        return info.name + " [DIR] | " + info.lastModified + " | " + info.permissions;
+    } else {
+        return info.name + " (" + info.sizeFormatted + ") | " + 
+               info.lastModified + " | " + info.permissions;
+    }
 }
 
 void BaseTreeBuilder::printTree() const {
     for (const auto& line : treeLines_) {
         std::cout << line << std::endl;
     }
-    
-    std::cout << "\nStatistics:\n";
-    std::cout << "Directories: " << stats_.totalDirectories << "\n";
-    std::cout << "Files: " << stats_.totalFiles << "\n";
-    std::cout << "Total size: " << FileSystem::formatSize(stats_.totalSize) << "\n";
 }
 
 ITreeBuilder::Statistics BaseTreeBuilder::getStatistics() const {
@@ -39,35 +94,4 @@ ITreeBuilder::Statistics BaseTreeBuilder::getStatistics() const {
 
 const std::vector<std::string>& BaseTreeBuilder::getTreeLines() const {
     return treeLines_;
-}
-
-void BaseTreeBuilder::traverseDirectory(const fs::path& path, 
-                                      const std::string& prefix, 
-                                      bool isLast,
-                                      bool showHidden) {
-    auto filter = [](const fs::directory_entry& entry, bool showHidden) {
-        return showHidden || !FileSystem::isHidden(entry.path());
-    };
-    
-    auto sort = [](const fs::directory_entry& a, const fs::directory_entry& b) {
-        // Сначала директории, потом файлы
-        bool aIsDir = a.is_directory();
-        bool bIsDir = b.is_directory();
-        
-        if (aIsDir != bIsDir) {
-            return aIsDir > bIsDir; // Директории first
-        }
-        return a.path().filename() < b.path().filename();
-    };
-    
-    processDirectoryEntries(path, filter, sort, showHidden, prefix, isLast);
-}
-
-bool BaseTreeBuilder::shouldIncludeFile(const fs::path& path, bool showHidden) const {
-    return showHidden || !FileSystem::isHidden(path);
-}
-
-std::string BaseTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info, 
-                                          const std::string& /*connector*/) const {
-    return info.name + (info.isDirectory ? " (directory)" : " (" + info.sizeFormatted + ")");
 }
