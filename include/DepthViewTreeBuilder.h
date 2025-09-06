@@ -18,5 +18,6 @@ private:
     void traverseDirectory(const fs::path& path, 
                           const std::string& prefix, 
                           bool isLast,
-                          bool showHidden) override;
+                          bool showHidden,
+                          bool isRoot = false) override;
 };

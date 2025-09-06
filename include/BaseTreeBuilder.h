@@ -31,7 +31,8 @@ protected:
     virtual void traverseDirectory(const fs::path& path, 
                                  const std::string& prefix, 
                                  bool isLast,
-                                 bool showHidden);
+                                 bool showHidden,
+                                 bool isRoot = false);
     
     virtual bool shouldIncludeFile(const fs::path& path, bool showHidden) const;
     virtual std::string formatTreeLine(const FileSystem::FileInfo& info, 

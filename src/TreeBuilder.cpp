@@ -20,6 +20,7 @@ std::string TreeBuilder::formatTreeLine(const FileSystem::FileInfo& info,
 void TreeBuilder::traverseDirectory(const fs::path& path, 
                                   const std::string& prefix, 
                                   bool isLast,
-                                  bool showHidden) {
-    BaseTreeBuilder::traverseDirectory(path, prefix, isLast, showHidden);
+                                  bool showHidden,
+                                  bool isRoot) {
+    BaseTreeBuilder::traverseDirectory(path, prefix, isLast, showHidden, isRoot);
 }

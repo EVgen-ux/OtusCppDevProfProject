@@ -33,18 +33,18 @@ void BaseTreeBuilder::buildTree(bool showHidden) {
 void BaseTreeBuilder::traverseDirectory(const fs::path& path, 
                                      const std::string& prefix, 
                                      bool isLast,
-                                     bool showHidden) {
-    if (path != rootPath_) {
+                                     bool showHidden,
+                                     bool isRoot) {
+    if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         std::string connector = isLast ? constants::TREE_LAST_BRANCH 
                                      : constants::TREE_BRANCH;
         
         treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
         stats_.totalDirectories++;
-    } else {
-        stats_.totalDirectories++;
     }
     
+    // Рекурсивно обходим содержимое директории
     std::string newPrefix = prefix;
     if (isLast) {
         newPrefix += constants::TREE_SPACE;
@@ -52,18 +52,42 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
         newPrefix += constants::TREE_VERTICAL;
     }
     
-    auto filter = [](const fs::directory_entry& entry, bool showHidden) {
-        return !FileSystem::isHidden(entry.path()) || showHidden;
-    };
+    std::vector<fs::directory_entry> entries;
     
-    auto sort = [](const fs::directory_entry& a, const fs::directory_entry& b) {
+    try {
+        for (const auto& entry : fs::directory_iterator(path)) {
+            if (!FileSystem::isHidden(entry.path()) || showHidden) {
+                entries.push_back(entry);
+            }
+        }
+    } catch (const fs::filesystem_error&) {
+        return;
+    }
+    
+    // Сортировка: сначала директории, потом файлы
+    std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
         if (a.is_directory() != b.is_directory()) {
             return a.is_directory() > b.is_directory();
         }
         return a.path().filename().string() < b.path().filename().string();
-    };
+    });
     
-    processDirectoryEntries(path, filter, sort, showHidden, newPrefix, isLast);
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const auto& entry = entries[i];
+        bool entryIsLast = (i == entries.size() - 1);
+        
+        if (entry.is_directory()) {
+            traverseDirectory(entry.path(), newPrefix, entryIsLast, showHidden, false);
+        } else {
+            auto info = FileSystem::getFileInfo(entry.path());
+            std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH 
+                                              : constants::TREE_BRANCH;
+            
+            treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
+            stats_.totalFiles++;
+            stats_.totalSize += info.size;
+        }
+    }
 }
 
 bool BaseTreeBuilder::shouldIncludeFile(const fs::path& path, bool showHidden) const {
