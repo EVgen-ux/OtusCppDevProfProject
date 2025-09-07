@@ -7,13 +7,19 @@ DepthViewTreeBuilder::DepthViewTreeBuilder(const std::string& rootPath, size_t m
 void DepthViewTreeBuilder::buildTree(bool showHidden) {
     treeLines_.clear();
     stats_ = Statistics{0, 0, 0};
+    displayStats_ = DisplayStatistics{};
     currentDepth_ = 0;
     
-    // Добавляем корневую директорию
+    // Добавляем корневую директорию (не учитываем в статистике)
     treeLines_.push_back("[DIR]");
-    stats_.totalDirectories++;
     
-    // Обходим корневую директорию
+    // Если глубина не ограничена, используем базовую реализацию
+    if (maxDepth_ == 0) {
+        TreeBuilder::buildTree(showHidden);
+        return;
+    }
+    
+    // Обходим корневую директорию с ограничением глубины
     traverseDirectory(rootPath_, "", true, showHidden, true);
 }
 
@@ -22,6 +28,7 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
                                            bool isLast,
                                            bool showHidden,
                                            bool isRoot) {
+    // Для не корневых директорий добавляем в дерево и статистику
     if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         std::string connector = isLast ? constants::TREE_LAST_BRANCH 
@@ -29,11 +36,15 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
         
         treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
         stats_.totalDirectories++;
+        displayStats_.displayedDirectories++;
     }
     
     // Проверяем глубину
     if (maxDepth_ > 0 && currentDepth_ >= maxDepth_) {
         // Достигнута максимальная глубина - показываем директорию без содержимого
+        if (!isRoot) {
+            displayStats_.hiddenByDepth++;
+        }
         return;
     }
     
@@ -83,6 +94,8 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
                 treeLines_.push_back(newPrefix + connector + info.name + " [DIR] (содержимое скрыто) | " + 
                                    info.lastModified + " | " + info.permissions);
                 stats_.totalDirectories++;
+                displayStats_.displayedDirectories++;
+                displayStats_.hiddenByDepth++;
             } else {
                 traverseDirectory(entry.path(), newPrefix, entryIsLast, showHidden, false);
             }
@@ -94,6 +107,8 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
             treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
             stats_.totalFiles++;
             stats_.totalSize += info.size;
+            displayStats_.displayedFiles++;
+            displayStats_.displayedSize += info.size;
         }
     }
     

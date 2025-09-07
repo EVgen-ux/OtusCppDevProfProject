@@ -17,4 +17,6 @@ protected:
                          bool isLast,
                          bool showHidden,
                          bool isRoot = false) override;
+    
+  //  DisplayStatistics getDisplayStatistics() const override; // Добавьте если нужно
 };

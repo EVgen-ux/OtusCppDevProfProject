@@ -19,6 +19,7 @@ public:
     void buildTree(bool showHidden = false) override;
     void printTree() const override;
     Statistics getStatistics() const override;
+    DisplayStatistics getDisplayStatistics() const override;
     const std::vector<std::string>& getTreeLines() const override;
     
     std::vector<std::string>& getTreeLines() { return treeLines_; }
@@ -26,6 +27,7 @@ public:
 protected:
     fs::path rootPath_;
     Statistics stats_;
+    DisplayStatistics displayStats_;
     std::vector<std::string> treeLines_;
     
     virtual void traverseDirectory(const fs::path& path, 
@@ -40,20 +42,11 @@ protected:
     
     template<typename FilterFunc, typename SortFunc>
     void processDirectoryEntries(const fs::path& path, 
-                               FilterFunc filter, 
-                               SortFunc sort,
-                               bool showHidden,
-                               const std::string& prefix,
-                               bool isLast);
-};
-
-template<typename FilterFunc, typename SortFunc>
-void BaseTreeBuilder::processDirectoryEntries(const fs::path& path, 
-                                           FilterFunc filter, 
-                                           SortFunc sort,
-                                           bool showHidden,
-                                           const std::string& prefix,
-                                           bool isLast) {
+                           FilterFunc filter, 
+                           SortFunc sort,
+                           bool showHidden,
+                           const std::string& prefix,
+                           bool isLast) {
     std::vector<fs::directory_entry> entries;
     
     try {
@@ -84,13 +77,19 @@ void BaseTreeBuilder::processDirectoryEntries(const fs::path& path,
                                           : constants::TREE_BRANCH;
         
         if (entry.is_directory()) {
-            // Для директорий просто вызываем traverseDirectory, 
-            // который сам добавит директорию в нужном месте
+            // Для директорий просто вызываем traverseDirectory
             traverseDirectory(entry.path(), prefix, entryIsLast, showHidden);
+            
+            // Обновляем статистику
+            stats_.totalDirectories++;
+            displayStats_.displayedDirectories++;
         } else {
             treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
             stats_.totalFiles++;
             stats_.totalSize += info.size;
+            displayStats_.displayedFiles++;
+            displayStats_.displayedSize += info.size;
         }
     }
 }
+};

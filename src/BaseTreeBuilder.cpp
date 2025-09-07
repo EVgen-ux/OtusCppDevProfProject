@@ -9,25 +9,13 @@ BaseTreeBuilder::BaseTreeBuilder(const std::string& rootPath)
 void BaseTreeBuilder::buildTree(bool showHidden) {
     treeLines_.clear();
     stats_ = Statistics{0, 0, 0};
+    displayStats_ = DisplayStatistics{};
     
-    // Добавляем корневую директорию
-    auto rootInfo = FileSystem::getFileInfo(rootPath_);
+    // Добавляем корневую директорию (не учитываем в статистике)
     treeLines_.push_back("[DIR]");
-    stats_.totalDirectories++;
     
-    // Обходим содержимое корневой директории (но не саму корневую директорию)
-    auto filter = [](const fs::directory_entry& entry, bool showHidden) {
-        return !FileSystem::isHidden(entry.path()) || showHidden;
-    };
-    
-    auto sort = [](const fs::directory_entry& a, const fs::directory_entry& b) {
-        if (a.is_directory() != b.is_directory()) {
-            return a.is_directory() > b.is_directory();
-        }
-        return a.path().filename().string() < b.path().filename().string();
-    };
-    
-    processDirectoryEntries(rootPath_, filter, sort, showHidden, "", true);
+    // Обходим содержимое корневой директории
+    traverseDirectory(rootPath_, "", true, showHidden, true);
 }
 
 void BaseTreeBuilder::traverseDirectory(const fs::path& path, 
@@ -35,6 +23,7 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
                                      bool isLast,
                                      bool showHidden,
                                      bool isRoot) {
+    // Для не корневых директорий добавляем в дерево и статистику
     if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         std::string connector = isLast ? constants::TREE_LAST_BRANCH 
@@ -42,6 +31,7 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
         
         treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
         stats_.totalDirectories++;
+        displayStats_.displayedDirectories++;
     }
     
     // Рекурсивно обходим содержимое директории
@@ -77,6 +67,7 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
         bool entryIsLast = (i == entries.size() - 1);
         
         if (entry.is_directory()) {
+            // Директории учитываются в traverseDirectory при входе
             traverseDirectory(entry.path(), newPrefix, entryIsLast, showHidden, false);
         } else {
             auto info = FileSystem::getFileInfo(entry.path());
@@ -86,6 +77,8 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
             treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
             stats_.totalFiles++;
             stats_.totalSize += info.size;
+            displayStats_.displayedFiles++;
+            displayStats_.displayedSize += info.size;
         }
     }
 }
@@ -114,6 +107,10 @@ void BaseTreeBuilder::printTree() const {
 
 ITreeBuilder::Statistics BaseTreeBuilder::getStatistics() const {
     return stats_;
+}
+
+ITreeBuilder::DisplayStatistics BaseTreeBuilder::getDisplayStatistics() const {
+    return displayStats_;
 }
 
 const std::vector<std::string>& BaseTreeBuilder::getTreeLines() const {

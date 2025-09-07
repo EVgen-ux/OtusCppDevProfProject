@@ -58,25 +58,35 @@ int main(int argc, char* argv[]) {
     }
     
     try {
-        DepthViewTreeBuilder builder(path, maxDepth);
-        builder.buildTree(showHidden);
-        builder.printTree();
-        
-        auto stats = builder.getStatistics();
-        std::cout << std::endl;
-        if (maxDepth > 0) {
-            std::cout << "Статистика (глубина ограничена " << maxDepth << " уровнями):" << std::endl;
-        } else {
-            std::cout << "Статистика:" << std::endl;
+    DepthViewTreeBuilder builder(path, maxDepth);
+    builder.buildTree(showHidden);
+    builder.printTree();
+    
+    std::cout << std::endl;
+    
+    if (maxDepth > 0) {
+        // Для ограниченной глубины используем displayStats
+        auto displayStats = builder.getDisplayStatistics();
+        std::cout << "Статистика (глубина ограничена " << maxDepth << " уровнями):" << std::endl;
+        std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+        std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+        std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+        if (displayStats.hiddenByDepth > 0) {
+            std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
         }
+    } else {
+        // Для полного обхода используем общую статистику
+        auto stats = builder.getStatistics();
+        std::cout << "Статистика:" << std::endl;
         std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
         std::cout << "  Файлов: " << stats.totalFiles << std::endl;
         std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка: " << e.what() << std::endl;
-        return 1;
     }
+    
+} catch (const std::exception& e) {
+    std::cerr << "Ошибка: " << e.what() << std::endl;
+    return 1;
+}
     
     return 0;
 }
