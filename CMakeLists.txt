@@ -12,6 +12,9 @@ set(SOURCES
     src/DepthViewTreeBuilder.cpp
     src/ITreeBuilder.cpp
     src/FilteredTreeBuilder.cpp
+    src/CommandLineParser.cpp
+    src/HelpPrinter.cpp
+    src/StatisticsPrinter.cpp
 )
 
 set(HEADERS
@@ -22,6 +25,9 @@ set(HEADERS
     include/FileSystem.h
     include/DepthViewTreeBuilder.h
     include/FilteredTreeBuilder.h
+    include/CommandLineParser.h
+    include/HelpPrinter.h
+    include/StatisticsPrinter.h
 )
 
 add_executable(tree-utility ${SOURCES} ${HEADERS})

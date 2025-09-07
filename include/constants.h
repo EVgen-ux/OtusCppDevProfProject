@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint> 
 
 namespace constants {
     const std::string VERSION = "1.0.0";
