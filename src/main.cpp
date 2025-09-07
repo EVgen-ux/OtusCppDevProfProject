@@ -5,6 +5,7 @@
 #include "FilteredTreeBuilder.h"
 #include "constants.h"
 #include "FileSystem.h"
+#include "ColorManager.h" // Добавьте этот include
 
 void printHelp() {
     std::cout << "Tree Utility v" << constants::VERSION << std::endl;
@@ -19,6 +20,7 @@ void printHelp() {
     std::cout << "  -d, --date OP DATE  Фильтр по дате (>, <, ==), формат: YYYY-MM-DD" << std::endl;
     std::cout << "  -n, --name PATTERN  Включить файлы по шаблону имени" << std::endl;
     std::cout << "  -x, --exclude PATTERN Исключить файлы по шаблону имени" << std::endl;
+    std::cout << "  --no-color          Отключить цветное оформление" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
     std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
@@ -85,7 +87,8 @@ int main(int argc, char* argv[]) {
     bool showHidden = false;
     size_t maxDepth = 0;
     bool useFilteredBuilder = false;
-    
+    bool useColors = true;
+
     std::unique_ptr<ITreeBuilder> builder;
     
     for (int i = 1; i < argc; ++i) {
@@ -97,6 +100,9 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-v" || arg == "--version") {
             printVersion();
             return 0;
+        } else if (arg == "--no-color") {
+            useColors = false;
+            ColorManager::disableColors(); // Используем ColorManager
         } else if (arg == "-a" || arg == "--all") {
             showHidden = true;
         } else if (arg == "-L" || arg == "--level") {

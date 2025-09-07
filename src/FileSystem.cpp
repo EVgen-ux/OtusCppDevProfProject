@@ -5,6 +5,7 @@
 #include <locale>
 #include <cmath>
 #include <sstream>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -12,6 +13,9 @@ FileSystem::FileInfo FileSystem::getFileInfo(const fs::path& path) {
     FileInfo info;
     info.name = path.filename().string();
     info.isDirectory = fs::is_directory(path);
+    info.isHidden = isHidden(path); // Добавьте эту строку
+    info.isExecutable = isExecutable(path); // Добавьте эту строку
+    info.isSymlink = isSymlink(path); // Добавьте эту строку
     
     try {
         if (info.isDirectory) {
@@ -203,4 +207,92 @@ bool FileSystem::isHidden(const fs::path& path) {
     #else
         return filename[0] == '.';
     #endif
+}
+
+bool FileSystem::isExecutable(const fs::path& path) {
+    try {
+        auto perms = fs::status(path).permissions();
+        return (perms & (fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec)) != fs::perms::none;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool FileSystem::isSymlink(const fs::path& path) {
+    try {
+        return fs::is_symlink(path);
+    } catch (...) {
+        return false;
+    }
+}
+
+std::string FileSystem::getFileColor(const FileInfo& info) {
+    if (info.isHidden) {
+        return constants::HIDDEN_COLOR;
+    }
+    
+    if (info.isDirectory) {
+        return constants::DIR_NAME_COLOR;
+    }
+    
+    if (info.isSymlink) {
+        return constants::SYMLINK_COLOR;
+    }
+    
+    if (info.isExecutable) {
+        return constants::EXECUTABLE_COLOR;
+    }
+    
+    // Определяем цвет по расширению файла
+    std::string extension = info.name.substr(info.name.find_last_of(".") + 1);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    
+    // Изображения
+    if (extension == "jpg" || extension == "jpeg" || extension == "png" || 
+        extension == "gif" || extension == "bmp" || extension == "svg" ||
+        extension == "webp" || extension == "tiff") {
+        return constants::IMAGE_COLOR;
+    }
+    
+    // Видео файлы
+    if (extension == "mov" || extension == "mp4" || extension == "avi" || 
+        extension == "mkv" || extension == "wmv" || extension == "flv" ||
+        extension == "webm" || extension == "m4v" || extension == "mpeg") {
+        return constants::VIDEO_COLOR;
+    }
+    
+    // Аудио файлы
+    if (extension == "mp3" || extension == "wav" || extension == "flac" || 
+        extension == "aac" || extension == "ogg" || extension == "wma") {
+        return constants::AUDIO_COLOR;
+    }
+    
+    // Архивы
+    if (extension == "zip" || extension == "rar" || extension == "tar" || 
+        extension == "gz" || extension == "7z" || extension == "bz2") {
+        return constants::ARCHIVE_COLOR;
+    }
+    
+    // Конфигурационные файлы
+    if (extension == "conf" || extension == "config" || extension == "ini" || 
+        extension == "json" || extension == "xml" || extension == "yaml" || 
+        extension == "yml" || extension == "toml") {
+        return constants::CONFIG_COLOR;
+    }
+    
+    // Документы
+    if (extension == "txt" || extension == "doc" || extension == "docx" || 
+        extension == "pdf" || extension == "rtf" || extension == "odt") {
+        return constants::DOCUMENT_COLOR;
+    }
+    
+    // Исходный код
+    if (extension == "cpp" || extension == "h" || extension == "hpp" || 
+        extension == "c" || extension == "java" || extension == "py" || 
+        extension == "js" || extension == "html" || extension == "css" || 
+        extension == "php" || extension == "rb" || extension == "go") {
+        return constants::CODE_COLOR;
+    }
+    
+    return constants::WHITE; // Стандартный цвет для остальных файлов
 }

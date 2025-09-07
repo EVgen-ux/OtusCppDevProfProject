@@ -1,4 +1,5 @@
 #include "DepthViewTreeBuilder.h"
+#include "ColorManager.h" // Добавьте этот include
 #include <iostream>
 
 DepthViewTreeBuilder::DepthViewTreeBuilder(const std::string& rootPath, size_t maxDepth)
@@ -10,8 +11,8 @@ void DepthViewTreeBuilder::buildTree(bool showHidden) {
     displayStats_ = DisplayStatistics{};
     currentDepth_ = 0;
     
-    // Добавляем корневую директорию (не учитываем в статистике)
-    treeLines_.push_back("[DIR]");
+    // Добавляем корневую директорию с использованием ColorManager
+    treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
     
     // Если глубина не ограничена, используем базовую реализацию
     if (maxDepth_ == 0) {
@@ -19,7 +20,7 @@ void DepthViewTreeBuilder::buildTree(bool showHidden) {
         return;
     }
     
-    // Обходим корневую директорию с ограничением глубины
+    // Обходим корневую директорию с ограничением глубина
     traverseDirectory(rootPath_, "", true, showHidden, true);
 }
 
@@ -34,7 +35,11 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
         std::string connector = isLast ? constants::TREE_LAST_BRANCH 
                                      : constants::TREE_BRANCH;
         
-        treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
+        std::string nameColor = FileSystem::getFileColor(info);
+        treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::getReset() + " " + 
+                           ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+                           ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+                           ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
         stats_.totalDirectories++;
         displayStats_.displayedDirectories++;
     }
@@ -90,9 +95,13 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
                 auto info = FileSystem::getFileInfo(entry.path());
                 std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH 
                                                   : constants::TREE_BRANCH;
+                std::string nameColor = FileSystem::getFileColor(info);
                 
-                treeLines_.push_back(newPrefix + connector + info.name + " [DIR] (содержимое скрыто) | " + 
-                                   info.lastModified + " | " + info.permissions);
+                treeLines_.push_back(newPrefix + connector + nameColor + info.name + ColorManager::getReset() + " " + 
+                                   ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " " + 
+                                   ColorManager::getHiddenContentColor() + "(содержимое скрыто)" + ColorManager::getReset() + " | " + 
+                                   ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+                                   ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
                 stats_.totalDirectories++;
                 displayStats_.displayedDirectories++;
                 displayStats_.hiddenByDepth++;
@@ -103,8 +112,12 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
             auto info = FileSystem::getFileInfo(entry.path());
             std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH 
                                               : constants::TREE_BRANCH;
+            std::string nameColor = FileSystem::getFileColor(info);
             
-            treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
+            treeLines_.push_back(newPrefix + connector + nameColor + info.name + ColorManager::getReset() + " (" + 
+                               ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
+                               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+                               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
             stats_.totalFiles++;
             stats_.totalSize += info.size;
             displayStats_.displayedFiles++;

@@ -1,4 +1,5 @@
 #include "BaseTreeBuilder.h"
+#include "ColorManager.h" 
 #include <functional>
 
 #define UNUSED(x) (void)(x)
@@ -11,8 +12,8 @@ void BaseTreeBuilder::buildTree(bool showHidden) {
     stats_ = Statistics{0, 0, 0};
     displayStats_ = DisplayStatistics{};
     
-    // Добавляем корневую директорию (не учитываем в статистике)
-    treeLines_.push_back("[DIR]");
+    // Добавляем корневую директорию с использованием ColorManager
+    treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
     
     // Обходим содержимое корневой директории
     traverseDirectory(rootPath_, "", true, showHidden, true);
@@ -83,6 +84,7 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
     }
 }
 
+
 bool BaseTreeBuilder::shouldIncludeFile(const fs::path& path, bool showHidden) const {
     return !FileSystem::isHidden(path) || showHidden;
 }
@@ -91,11 +93,18 @@ std::string BaseTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info,
                                          const std::string& connector) const {
     UNUSED(connector);
     
+    std::string nameColor = FileSystem::getFileColor(info);
+    
     if (info.isDirectory) {
-        return info.name + " [DIR] | " + info.lastModified + " | " + info.permissions;
+        return nameColor + info.name + ColorManager::getReset() + " " + 
+               ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
     } else {
-        return info.name + " (" + info.sizeFormatted + ") | " + 
-               info.lastModified + " | " + info.permissions;
+        return nameColor + info.name + ColorManager::getReset() + " (" + 
+               ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
     }
 }
 
@@ -103,6 +112,7 @@ void BaseTreeBuilder::printTree() const {
     for (const auto& line : treeLines_) {
         std::cout << line << std::endl;
     }
+    std::cout << ColorManager::getReset(); // Сбрасываем цвет в конце
 }
 
 ITreeBuilder::Statistics BaseTreeBuilder::getStatistics() const {
