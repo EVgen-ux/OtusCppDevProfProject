@@ -1,8 +1,10 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <fstream> 
 #include "DepthViewTreeBuilder.h"
 #include "FilteredTreeBuilder.h"
+#include "JSONTreeBuilder.h"
 #include "constants.h"
 #include "FileSystem.h"
 #include "ColorManager.h" // Добавьте этот include
@@ -21,6 +23,8 @@ void printHelp() {
     std::cout << "  -n, --name PATTERN  Включить файлы по шаблону имени" << std::endl;
     std::cout << "  -x, --exclude PATTERN Исключить файлы по шаблону имени" << std::endl;
     std::cout << "  --no-color          Отключить цветное оформление" << std::endl;
+    std::cout << "  --json              Вывод в формате JSON" << std::endl; 
+    std::cout << "  -o, --output FILE   Сохранить вывод в файл" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
     std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
@@ -88,6 +92,8 @@ int main(int argc, char* argv[]) {
     size_t maxDepth = 0;
     bool useFilteredBuilder = false;
     bool useColors = true;
+    bool useJSON = false;
+    std::string outputFile;
 
     std::unique_ptr<ITreeBuilder> builder;
     
@@ -102,7 +108,16 @@ int main(int argc, char* argv[]) {
             return 0;
         } else if (arg == "--no-color") {
             useColors = false;
-            ColorManager::disableColors(); // Используем ColorManager
+            ColorManager::disableColors();
+        } else if (arg == "--json") {
+            useJSON = true;
+        } else if (arg == "-o" || arg == "--output") {
+            if (i + 1 < argc) {
+                outputFile = argv[++i];
+            } else {
+                std::cerr << "Ошибка: опция -o требует имени файла" << std::endl;
+                return 1;
+            }
         } else if (arg == "-a" || arg == "--all") {
             showHidden = true;
         } else if (arg == "-L" || arg == "--level") {
@@ -259,36 +274,92 @@ int main(int argc, char* argv[]) {
             builder = ITreeBuilder::create(path);
         }
     }
-    
+
+    // Обертываем в JSON builder если нужно
+    if (useJSON) {
+        builder = std::make_unique<JSONTreeBuilder>(std::move(builder));
+    }
+
     try {
-        // Выводим информацию об ограничении глубины
-        if (maxDepth > 0) {
-            std::cout << "Глубина ограничена " << maxDepth << " уровнями" << std::endl;
-        }
-        
         builder->buildTree(showHidden);
-        builder->printTree();
         
-        std::cout << std::endl;
-        std::cout << "Статистика:" << std::endl;
-        
-        if (maxDepth > 0) {
-            auto displayStats = builder->getDisplayStatistics();
-            std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
-            std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
-            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
-            if (displayStats.hiddenByDepth > 0) {
-                std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
+        // Вывод в файл или на консоль
+        if (!outputFile.empty()) {
+            std::ofstream outFile(outputFile);
+            if (!outFile) {
+                std::cerr << "Ошибка: не удалось открыть файл " << outputFile << " для записи" << std::endl;
+                return 1;
             }
+            
+            if (useJSON) {
+                // Для JSON выводим напрямую
+                auto jsonBuilder = dynamic_cast<JSONTreeBuilder*>(builder.get());
+                if (jsonBuilder) {
+                    outFile << jsonBuilder->getJSON() << std::endl;
+                }
+            } else {
+                // Для обычного вывода сохраняем дерево
+                const auto& treeLines = builder->getTreeLines();
+                for (const auto& line : treeLines) {
+                    outFile << line << std::endl;
+                }
+                
+                // Сохраняем статистику
+                outFile << std::endl;
+                outFile << "Статистика:" << std::endl;
+                
+                if (maxDepth > 0) {
+                    auto displayStats = builder->getDisplayStatistics();
+                    outFile << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+                    outFile << "  Файлов: " << displayStats.displayedFiles << std::endl;
+                    outFile << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+                    if (displayStats.hiddenByDepth > 0) {
+                        outFile << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
+                    }
+                } else {
+                    auto stats = builder->getStatistics();
+                    outFile << "  Директорий: " << stats.totalDirectories << std::endl;
+                    outFile << "  Файлов: " << stats.totalFiles << std::endl;
+                    outFile << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+                }
+                
+                if (useFilteredBuilder) {
+                    outFile << "  (Применены фильтры)" << std::endl;
+                }
+            }
+            
+            std::cout << "Результат сохранен в файл: " << outputFile << std::endl;
         } else {
-            auto stats = builder->getStatistics();
-            std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
-            std::cout << "  Файлов: " << stats.totalFiles << std::endl;
-            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
-        }
-        
-        if (useFilteredBuilder) {
-            std::cout << "  (Применены фильтры)" << std::endl;
+            // Вывод на консоль
+            if (maxDepth > 0 && !useJSON) {
+                std::cout << "Глубина ограничена " << maxDepth << " уровнями" << std::endl;
+            }
+            
+            builder->printTree();
+            
+            if (!useJSON) {
+                std::cout << std::endl;
+                std::cout << "Статистика:" << std::endl;
+                
+                if (maxDepth > 0) {
+                    auto displayStats = builder->getDisplayStatistics();
+                    std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+                    std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+                    if (displayStats.hiddenByDepth > 0) {
+                        std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
+                    }
+                } else {
+                    auto stats = builder->getStatistics();
+                    std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
+                    std::cout << "  Файлов: " << stats.totalFiles << std::endl;
+                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+                }
+                
+                if (useFilteredBuilder) {
+                    std::cout << "  (Применены фильтры)" << std::endl;
+                }
+            }
         }
         
     } catch (const std::exception& e) {

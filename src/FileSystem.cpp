@@ -1,5 +1,5 @@
 #include "FileSystem.h"
-#include "constants.h"
+#include "ColorManager.h" // Добавьте этот include
 #include <iostream>
 #include <iomanip>
 #include <locale>
@@ -13,9 +13,9 @@ FileSystem::FileInfo FileSystem::getFileInfo(const fs::path& path) {
     FileInfo info;
     info.name = path.filename().string();
     info.isDirectory = fs::is_directory(path);
-    info.isHidden = isHidden(path); // Добавьте эту строку
-    info.isExecutable = isExecutable(path); // Добавьте эту строку
-    info.isSymlink = isSymlink(path); // Добавьте эту строку
+    info.isHidden = isHidden(path);
+    info.isExecutable = isExecutable(path);
+    info.isSymlink = isSymlink(path);
     
     try {
         if (info.isDirectory) {
@@ -214,19 +214,24 @@ bool FileSystem::isExecutable(const fs::path& path) {
         auto perms = fs::status(path).permissions();
         return (perms & (fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec)) != fs::perms::none;
     } catch (...) {
-        return false;
     }
+    return false;
 }
 
 bool FileSystem::isSymlink(const fs::path& path) {
     try {
         return fs::is_symlink(path);
     } catch (...) {
-        return false;
     }
+    return false;
 }
 
 std::string FileSystem::getFileColor(const FileInfo& info) {
+    // Если цвета отключены, возвращаем пустую строку
+    if (!ColorManager::areColorsEnabled()) {
+        return "";
+    }
+    
     if (info.isHidden) {
         return constants::HIDDEN_COLOR;
     }

@@ -1,4 +1,3 @@
-
 #include "ColorManager.h"
 
 bool ColorManager::colorsEnabled = true;
@@ -9,6 +8,10 @@ void ColorManager::disableColors() {
 
 void ColorManager::enableColors() {
     colorsEnabled = true;
+}
+
+bool ColorManager::areColorsEnabled() {
+    return colorsEnabled;
 }
 
 std::string ColorManager::getDirNameColor() {

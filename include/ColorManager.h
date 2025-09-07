@@ -7,6 +7,7 @@ class ColorManager {
 public:
     static void disableColors();
     static void enableColors();
+    static bool areColorsEnabled(); // Добавьте этот метод
     
     static std::string getDirNameColor();
     static std::string getDirLabelColor();
