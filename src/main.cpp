@@ -255,14 +255,19 @@ int main(int argc, char* argv[]) {
     }
     
     try {
+        // Выводим информацию об ограничении глубины
+        if (maxDepth > 0) {
+            std::cout << "Глубина ограничена " << maxDepth << " уровнями" << std::endl;
+        }
+        
         builder->buildTree(showHidden);
         builder->printTree();
         
         std::cout << std::endl;
+        std::cout << "Статистика:" << std::endl;
         
         if (maxDepth > 0) {
             auto displayStats = builder->getDisplayStatistics();
-            std::cout << "Статистика (глубина ограничена " << maxDepth << " уровнями):" << std::endl;
             std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
             std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
             std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
@@ -271,7 +276,6 @@ int main(int argc, char* argv[]) {
             }
         } else {
             auto stats = builder->getStatistics();
-            std::cout << "Статистика:" << std::endl;
             std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
             std::cout << "  Файлов: " << stats.totalFiles << std::endl;
             std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;

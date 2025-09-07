@@ -13,6 +13,10 @@ void FilteredTreeBuilder::addSizeFilter(uint64_t size, const std::string& operat
     filter.sizeValue = size;
     filter.operation = operation;
     filters_.push_back(filter);
+    
+    // Выводим информацию о добавленном фильтре
+    std::cout << "Добавлен фильтр размера: " << operation << " " 
+              << FileSystem::formatSize(size) << std::endl;
 }
 
 void FilteredTreeBuilder::addDateFilter(const std::string& date, const std::string& operation) {
@@ -33,6 +37,9 @@ void FilteredTreeBuilder::addDateFilter(const std::string& date, const std::stri
         std::time_t tt = std::mktime(&tm);
         filter.dateValue = std::chrono::system_clock::from_time_t(tt);
         filters_.push_back(filter);
+        
+        // Выводим информацию о добавленном фильтре
+        std::cout << "Добавлен фильтр даты: " << operation << " " << date << std::endl;
     } else {
         std::cerr << "Ошибка: неверный формат даты. Используйте YYYY-MM-DD или YYYY-MM-DD HH:MM:SS" << std::endl;
     }
@@ -49,8 +56,10 @@ void FilteredTreeBuilder::addNameFilter(const std::string& pattern, bool include
             std::regex_constants::icase | std::regex_constants::optimize);
         filters_.push_back(filter);
         
-        // Отладочная печать
-        std::cout << "Добавлен фильтр имени: " << pattern << " -> " << regexPattern << std::endl;
+        // Выводим информацию о добавленном фильтре
+        std::string filterType = include ? "включения" : "исключения";
+        std::cout << "Добавлен фильтр имени (" << filterType << "): " 
+                  << pattern << " -> " << regexPattern << std::endl;
         
     } catch (const std::regex_error& e) {
         std::cerr << "Ошибка в шаблоне имени: " << e.what() << std::endl;
