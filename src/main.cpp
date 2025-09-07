@@ -2,6 +2,7 @@
 #include <string>
 #include "DepthViewTreeBuilder.h"
 #include "constants.h"
+#include "FileSystem.h"
 
 void printHelp() {
     std::cout << "Tree Utility v" << constants::VERSION << std::endl;
@@ -70,7 +71,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
         std::cout << "  Файлов: " << stats.totalFiles << std::endl;
-        std::cout << "  Общий размер: " << stats.totalSize << " байт" << std::endl;
+        std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
         
     } catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;

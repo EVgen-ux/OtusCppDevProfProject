@@ -2,6 +2,11 @@
 #include "constants.h"
 #include <iostream>
 #include <iomanip>
+#include <locale>
+#include <cmath>
+#include <sstream>
+
+namespace fs = std::filesystem;
 
 FileSystem::FileInfo FileSystem::getFileInfo(const fs::path& path) {
     FileInfo info;
@@ -61,6 +66,97 @@ std::string FileSystem::formatSize(uint64_t size) {
     } else {
         return std::to_string(size / constants::TB) + " TB";
     }
+}
+
+std::string FileSystem::formatNumber(uint64_t number) {
+    std::string numStr = std::to_string(number);
+    std::string result;
+    
+    int count = 0;
+    for (int i = numStr.length() - 1; i >= 0; i--) {
+        result = numStr[i] + result;
+        count++;
+        if (count % 3 == 0 && i != 0) {
+            result = " " + result; // Используем тонкий пробел
+        }
+    }
+    
+    return result;
+}
+
+std::string FileSystem::formatSizeWithBytes(uint64_t size) {
+    std::string formattedSize = formatSize(size);
+    std::string formattedBytes = formatNumber(size) + " bytes";
+    return formattedSize + " (" + formattedBytes + ")";
+}
+
+std::string FileSystem::formatSizeBothSystems(uint64_t size) {
+    std::stringstream result;
+    
+    // Двоичные приставки (1 KiB = 1024 B, 1 MiB = 1024 KiB, и т.д.)
+    std::stringstream ssBinary;
+    ssBinary << std::fixed << std::setprecision(1);
+    
+    if (size < constants::KB) {
+        ssBinary << size << " B";
+    } else if (size < constants::MB) {
+        double kbSize = static_cast<double>(size) / constants::KB;
+        ssBinary << kbSize << " KiB";
+    } else if (size < constants::GB) {
+        double mbSize = static_cast<double>(size) / constants::MB;
+        ssBinary << mbSize << " MiB";
+    } else if (size < constants::TB) {
+        double gbSize = static_cast<double>(size) / constants::GB;
+        ssBinary << gbSize << " GiB";
+    } else {
+        double tbSize = static_cast<double>(size) / constants::TB;
+        ssBinary << tbSize << " TiB";
+    }
+    
+    std::string binaryResult = ssBinary.str();
+    size_t dotPos = binaryResult.find('.');
+    if (dotPos != std::string::npos) {
+        binaryResult[dotPos] = ',';
+    }
+    
+    // Десятичные приставки (1 KB = 1000 B, 1 MB = 1000 KB, и т.д.)
+    std::stringstream ssDecimal;
+    ssDecimal << std::fixed << std::setprecision(1);
+    
+    const uint64_t DECIMAL_KB = 1000;
+    const uint64_t DECIMAL_MB = 1000 * DECIMAL_KB;
+    const uint64_t DECIMAL_GB = 1000 * DECIMAL_MB;
+    const uint64_t DECIMAL_TB = 1000 * DECIMAL_GB;
+    
+    if (size < DECIMAL_KB) {
+        ssDecimal << size << " B";
+    } else if (size < DECIMAL_MB) {
+        double kbSize = static_cast<double>(size) / DECIMAL_KB;
+        ssDecimal << kbSize << " KB";
+    } else if (size < DECIMAL_GB) {
+        double mbSize = static_cast<double>(size) / DECIMAL_MB;
+        ssDecimal << mbSize << " MB";
+    } else if (size < DECIMAL_TB) {
+        double gbSize = static_cast<double>(size) / DECIMAL_GB;
+        ssDecimal << gbSize << " GB";
+    } else {
+        double tbSize = static_cast<double>(size) / DECIMAL_TB;
+        ssDecimal << tbSize << " TB";
+    }
+    
+    std::string decimalResult = ssDecimal.str();
+    dotPos = decimalResult.find('.');
+    if (dotPos != std::string::npos) {
+        decimalResult[dotPos] = ',';
+    }
+    
+    // Форматируем байты с разделителями
+    std::string formattedBytes = formatNumber(size) + " bytes";
+    
+    // Собираем все вместе
+    result << binaryResult << " / " << decimalResult << " (" << formattedBytes << ")";
+    
+    return result.str();
 }
 
 std::string FileSystem::formatTime(const fs::file_time_type& time) {
