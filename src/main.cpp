@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <memory>
 #include "DepthViewTreeBuilder.h"
 #include "FilteredTreeBuilder.h"
 #include "constants.h"
@@ -20,13 +21,17 @@ void printHelp() {
     std::cout << "  -x, --exclude PATTERN Исключить файлы по шаблону имени" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
-    std::cout << "  tree-utility . -L 2 -s \"> 1MB\"          # Файлы > 1MB" << std::endl;
-    std::cout << "  tree-utility . -d \"> 2023-01-01\"        # Файлы после 2023-01-01" << std::endl;
-    std::cout << "  tree-utility . -n \"*.cpp\"               # Только .cpp файлы" << std::endl;
-    std::cout << "  tree-utility . -x \"test.*\"              # Исключить test файлы" << std::endl;
+    std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
+    std::cout << "  tree-utility /path/to/dir -a -L 3" << std::endl;
+    std::cout << "  tree-utility . -s \"> 100MB\"   # Файлы > 100MB" << std::endl;
+    std::cout << "  tree-utility . -d \"> 2023-01-01\" # Файлы после 2023-01-01" << std::endl;
+    std::cout << "  tree-utility . -n \"*.cpp\"      # Только .cpp файлы" << std::endl;
+    std::cout << "  tree-utility . -x \"test.*\"     # Исключить test файлы" << std::endl;
+    std::cout << std::endl;
     std::cout << "Примечание: порядок опций влияет на результат обработки:" << std::endl;
     std::cout << "  -L 2 -s \">100MB\"  # Сначала ограничить глубину, потом фильтровать" << std::endl;
     std::cout << "  -s \">100MB\" -L 2  # Сначала отфильтровать, потом ограничить глубину" << std::endl;
+    std::cout << "  Можно комбинировать несколько фильтров: -s '>100MB' -x '*.tmp'" << std::endl;
 }
 
 void printVersion() {
@@ -81,13 +86,7 @@ int main(int argc, char* argv[]) {
     size_t maxDepth = 0;
     bool useFilteredBuilder = false;
     
-    // Создаем базовый билдер в зависимости от наличия maxDepth
     std::unique_ptr<ITreeBuilder> builder;
-    if (maxDepth > 0) {
-        builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
-    } else {
-        builder = ITreeBuilder::create(path);
-    }
     
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -145,20 +144,16 @@ int main(int argc, char* argv[]) {
                 
                 try {
                     uint64_t size = parseSize(sizeStr);
-                    // Если текущий билдер не FilteredTreeBuilder, создаем новый
                     FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
                     if (!filteredBuilder) {
-                        // Сохраняем текущие настройки глубины
                         size_t currentDepth = maxDepth;
-                        if (currentDepth > 0) {
-                            builder = std::make_unique<FilteredTreeBuilder>(path);
-                            dynamic_cast<FilteredTreeBuilder*>(builder.get())->setMaxDepth(currentDepth);
-                        } else {
-                            builder = std::make_unique<FilteredTreeBuilder>(path);
-                        }
+                        builder = std::make_unique<FilteredTreeBuilder>(path);
                         filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
+                        if (currentDepth > 0) {
+                            filteredBuilder->setMaxDepth(currentDepth);
+                        }
                     }
-                    filteredBuilder->setSizeFilter(size, op);
+                    filteredBuilder->addSizeFilter(size, op);
                 } catch (const std::exception& e) {
                     std::cerr << "Ошибка: " << e.what() << std::endl;
                     return 1;
@@ -186,15 +181,13 @@ int main(int argc, char* argv[]) {
                 FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
                 if (!filteredBuilder) {
                     size_t currentDepth = maxDepth;
-                    if (currentDepth > 0) {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                        dynamic_cast<FilteredTreeBuilder*>(builder.get())->setMaxDepth(currentDepth);
-                    } else {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                    }
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                     filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
+                    if (currentDepth > 0) {
+                        filteredBuilder->setMaxDepth(currentDepth);
+                    }
                 }
-                filteredBuilder->setDateFilter(dateStr, op);
+                filteredBuilder->addDateFilter(dateStr, op);
             } else {
                 std::cerr << "Ошибка: опция -d требует значения" << std::endl;
                 return 1;
@@ -206,15 +199,13 @@ int main(int argc, char* argv[]) {
                 FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
                 if (!filteredBuilder) {
                     size_t currentDepth = maxDepth;
-                    if (currentDepth > 0) {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                        dynamic_cast<FilteredTreeBuilder*>(builder.get())->setMaxDepth(currentDepth);
-                    } else {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                    }
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                     filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
+                    if (currentDepth > 0) {
+                        filteredBuilder->setMaxDepth(currentDepth);
+                    }
                 }
-                filteredBuilder->setNameFilter(pattern, true);
+                filteredBuilder->addNameFilter(pattern, true);
             } else {
                 std::cerr << "Ошибка: опция -n требует шаблона" << std::endl;
                 return 1;
@@ -226,15 +217,13 @@ int main(int argc, char* argv[]) {
                 FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
                 if (!filteredBuilder) {
                     size_t currentDepth = maxDepth;
-                    if (currentDepth > 0) {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                        dynamic_cast<FilteredTreeBuilder*>(builder.get())->setMaxDepth(currentDepth);
-                    } else {
-                        builder = std::make_unique<FilteredTreeBuilder>(path);
-                    }
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                     filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
+                    if (currentDepth > 0) {
+                        filteredBuilder->setMaxDepth(currentDepth);
+                    }
                 }
-                filteredBuilder->setNameFilter(pattern, false);
+                filteredBuilder->addNameFilter(pattern, false);
             } else {
                 std::cerr << "Ошибка: опция -x требует шаблона" << std::endl;
                 return 1;
@@ -243,9 +232,10 @@ int main(int argc, char* argv[]) {
             path = arg;
             // Обновляем путь в билдере
             if (DepthViewTreeBuilder* depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(builder.get())) {
-                depthBuilder = new DepthViewTreeBuilder(path, maxDepth);
+                builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
             } else if (FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-                filteredBuilder = new FilteredTreeBuilder(path);
+                builder = std::make_unique<FilteredTreeBuilder>(path);
+                filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
                 if (maxDepth > 0) {
                     filteredBuilder->setMaxDepth(maxDepth);
                 }
@@ -255,15 +245,16 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    try {
-        if (!builder) {
-            if (maxDepth > 0) {
-                builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
-            } else {
-                builder = ITreeBuilder::create(path);
-            }
+    // Если билдер еще не создан, создаем его
+    if (!builder) {
+        if (maxDepth > 0) {
+            builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
+        } else {
+            builder = ITreeBuilder::create(path);
         }
-        
+    }
+    
+    try {
         builder->buildTree(showHidden);
         builder->printTree();
         

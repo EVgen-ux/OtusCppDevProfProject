@@ -5,15 +5,16 @@
 #include <functional>
 #include <regex>
 #include <chrono>
+#include <vector>
 
 class FilteredTreeBuilder : public TreeBuilder {
 public:
     explicit FilteredTreeBuilder(const std::string& rootPath);
     
-    // Методы для установки фильтров
-    void setSizeFilter(uint64_t size, const std::string& operation = ">");
-    void setDateFilter(const std::string& date, const std::string& operation = ">");
-    void setNameFilter(const std::string& pattern, bool include = true);
+    // Методы для добавления фильтров (множественные)
+    void addSizeFilter(uint64_t size, const std::string& operation = ">");
+    void addDateFilter(const std::string& date, const std::string& operation = ">");
+    void addNameFilter(const std::string& pattern, bool include = true);
     void setMaxDepth(size_t maxDepth);
     
     void clearFilters();
@@ -30,7 +31,7 @@ private:
         bool include = true;
     };
     
-    Filter currentFilter_;
+    std::vector<Filter> filters_; // Множественные фильтры
     size_t maxDepth_;
     size_t currentDepth_;
     
@@ -41,5 +42,8 @@ private:
                           bool isRoot = false) override;
     
     bool shouldIncludeEntry(const fs::path& path, const FileSystem::FileInfo& info) const;
-    bool matchesFilter(const FileSystem::FileInfo& info) const;
+    bool matchesAllFilters(const FileSystem::FileInfo& info) const;
+    bool matchesSingleFilter(const FileSystem::FileInfo& info, const Filter& filter) const;
+    
+    std::string wildcardToRegex(const std::string& pattern) const;
 };

@@ -5,19 +5,20 @@
 #include <iomanip>
 
 FilteredTreeBuilder::FilteredTreeBuilder(const std::string& rootPath) 
-    : TreeBuilder(rootPath), maxDepth_(0), currentDepth_(0) {
-    currentFilter_.type = Filter::Type::NONE;
+    : TreeBuilder(rootPath), maxDepth_(0), currentDepth_(0) {}
+
+void FilteredTreeBuilder::addSizeFilter(uint64_t size, const std::string& operation) {
+    Filter filter;
+    filter.type = Filter::Type::SIZE;
+    filter.sizeValue = size;
+    filter.operation = operation;
+    filters_.push_back(filter);
 }
 
-void FilteredTreeBuilder::setSizeFilter(uint64_t size, const std::string& operation) {
-    currentFilter_.type = Filter::Type::SIZE;
-    currentFilter_.sizeValue = size;
-    currentFilter_.operation = operation;
-}
-
-void FilteredTreeBuilder::setDateFilter(const std::string& date, const std::string& operation) {
-    currentFilter_.type = Filter::Type::DATE;
-    currentFilter_.operation = operation;
+void FilteredTreeBuilder::addDateFilter(const std::string& date, const std::string& operation) {
+    Filter filter;
+    filter.type = Filter::Type::DATE;
+    filter.operation = operation;
     
     std::tm tm = {};
     std::istringstream ss(date);
@@ -30,79 +31,84 @@ void FilteredTreeBuilder::setDateFilter(const std::string& date, const std::stri
     
     if (!ss.fail()) {
         std::time_t tt = std::mktime(&tm);
-        currentFilter_.dateValue = std::chrono::system_clock::from_time_t(tt);
+        filter.dateValue = std::chrono::system_clock::from_time_t(tt);
+        filters_.push_back(filter);
     } else {
-        currentFilter_.type = Filter::Type::NONE;
         std::cerr << "Ошибка: неверный формат даты. Используйте YYYY-MM-DD или YYYY-MM-DD HH:MM:SS" << std::endl;
     }
 }
 
-void FilteredTreeBuilder::setNameFilter(const std::string& pattern, bool include) {
-    currentFilter_.type = Filter::Type::NAME;
+void FilteredTreeBuilder::addNameFilter(const std::string& pattern, bool include) {
+    Filter filter;
+    filter.type = Filter::Type::NAME;
+    filter.include = include;
+    
     try {
-        // Преобразуем wildcard pattern в regex
-        std::string regexPattern;
-        for (char c : pattern) {
-            switch (c) {
-                case '*':
-                    regexPattern += ".*"; // * -> .*
-                    break;
-                case '?':
-                    regexPattern += '.';  // ? -> .
-                    break;
-                case '.':
-                    regexPattern += "\\."; // . -> \.
-                    break;
-                case '\\':
-                    regexPattern += "\\\\"; // \ -> \\
-                    break;
-                case '+':
-                    regexPattern += "\\+"; // + -> \+
-                    break;
-                case '^':
-                    regexPattern += "\\^"; // ^ -> \^
-                    break;
-                case '$':
-                    regexPattern += "\\$"; // $ -> \$
-                    break;
-                case '|':
-                    regexPattern += "\\|"; // | -> \|
-                    break;
-                case '(':
-                    regexPattern += "\\("; // ( -> \(
-                    break;
-                case ')':
-                    regexPattern += "\\)"; // ) -> \)
-                    break;
-                case '[':
-                    regexPattern += "\\["; // [ -> \[
-                    break;
-                case ']':
-                    regexPattern += "\\]"; // ] -> \]
-                    break;
-                case '{':
-                    regexPattern += "\\{"; // { -> \{
-                    break;
-                case '}':
-                    regexPattern += "\\}"; // } -> \}
-                    break;
-                default:
-                    regexPattern += c;
-                    break;
-            }
-        }
-        
-        currentFilter_.namePattern = std::regex(regexPattern, 
+        std::string regexPattern = wildcardToRegex(pattern);
+        filter.namePattern = std::regex(regexPattern, 
             std::regex_constants::icase | std::regex_constants::optimize);
-        currentFilter_.include = include;
+        filters_.push_back(filter);
         
-        // Отладочная печать (можно убрать после тестирования)
-        std::cout << "Шаблон: " << pattern << " -> Regex: " << regexPattern << std::endl;
+        // Отладочная печать
+        std::cout << "Добавлен фильтр имени: " << pattern << " -> " << regexPattern << std::endl;
         
     } catch (const std::regex_error& e) {
-        currentFilter_.type = Filter::Type::NONE;
         std::cerr << "Ошибка в шаблоне имени: " << e.what() << std::endl;
     }
+}
+
+std::string FilteredTreeBuilder::wildcardToRegex(const std::string& pattern) const {
+    std::string regexPattern;
+    for (char c : pattern) {
+        switch (c) {
+            case '*':
+                regexPattern += ".*";
+                break;
+            case '?':
+                regexPattern += '.';
+                break;
+            case '.':
+                regexPattern += "\\.";
+                break;
+            case '\\':
+                regexPattern += "\\\\";
+                break;
+            case '+':
+                regexPattern += "\\+";
+                break;
+            case '^':
+                regexPattern += "\\^";
+                break;
+            case '$':
+                regexPattern += "\\$";
+                break;
+            case '|':
+                regexPattern += "\\|";
+                break;
+            case '(':
+                regexPattern += "\\(";
+                break;
+            case ')':
+                regexPattern += "\\)";
+                break;
+            case '[':
+                regexPattern += "\\[";
+                break;
+            case ']':
+                regexPattern += "\\]";
+                break;
+            case '{':
+                regexPattern += "\\{";
+                break;
+            case '}':
+                regexPattern += "\\}";
+                break;
+            default:
+                regexPattern += c;
+                break;
+        }
+    }
+    return regexPattern;
 }
 
 void FilteredTreeBuilder::setMaxDepth(size_t maxDepth) {
@@ -110,7 +116,7 @@ void FilteredTreeBuilder::setMaxDepth(size_t maxDepth) {
 }
 
 void FilteredTreeBuilder::clearFilters() {
-    currentFilter_.type = Filter::Type::NONE;
+    filters_.clear();
 }
 
 void FilteredTreeBuilder::buildTree(bool showHidden) {
@@ -121,46 +127,54 @@ void FilteredTreeBuilder::buildTree(bool showHidden) {
     
     treeLines_.push_back("[DIR]");
     
-    // Если установлена максимальная глубина, используем наш обход с ограничением
     if (maxDepth_ > 0) {
         traverseDirectory(rootPath_, "", true, showHidden, true);
     } else {
-        // Иначе используем базовую реализацию
         TreeBuilder::buildTree(showHidden);
     }
 }
 
 bool FilteredTreeBuilder::shouldIncludeEntry(const fs::path& path, const FileSystem::FileInfo& info) const {
-    // Всегда включаем директории при фильтрации
+    // Всегда включаем директории
     if (info.isDirectory) {
         return true;
     }
     
-    return matchesFilter(info);
+    // Применяем все фильтры последовательно
+    return matchesAllFilters(info);
 }
 
-bool FilteredTreeBuilder::matchesFilter(const FileSystem::FileInfo& info) const {
-    if (currentFilter_.type == Filter::Type::NONE) {
-        return true;
+bool FilteredTreeBuilder::matchesAllFilters(const FileSystem::FileInfo& info) const {
+    if (filters_.empty()) {
+        return true; // Нет фильтров - включаем всё
     }
     
-    switch (currentFilter_.type) {
+    // Все фильтры должны быть пройдены (логическое И)
+    for (const auto& filter : filters_) {
+        if (!matchesSingleFilter(info, filter)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FilteredTreeBuilder::matchesSingleFilter(const FileSystem::FileInfo& info, const Filter& filter) const {
+    switch (filter.type) {
         case Filter::Type::SIZE:
-            if (currentFilter_.operation == ">") {
-                return info.size > currentFilter_.sizeValue;
-            } else if (currentFilter_.operation == "<") {
-                return info.size < currentFilter_.sizeValue;
-            } else if (currentFilter_.operation == "==") {
-                return info.size == currentFilter_.sizeValue;
-            } else if (currentFilter_.operation == ">=") {
-                return info.size >= currentFilter_.sizeValue;
-            } else if (currentFilter_.operation == "<=") {
-                return info.size <= currentFilter_.sizeValue;
+            if (filter.operation == ">") {
+                return info.size > filter.sizeValue;
+            } else if (filter.operation == "<") {
+                return info.size < filter.sizeValue;
+            } else if (filter.operation == "==") {
+                return info.size == filter.sizeValue;
+            } else if (filter.operation == ">=") {
+                return info.size >= filter.sizeValue;
+            } else if (filter.operation == "<=") {
+                return info.size <= filter.sizeValue;
             }
             break;
             
         case Filter::Type::DATE: {
-            // Преобразуем строку времени файла обратно в time_point для сравнения
             std::tm tm = {};
             std::istringstream ss(info.lastModified);
             ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
@@ -168,20 +182,20 @@ bool FilteredTreeBuilder::matchesFilter(const FileSystem::FileInfo& info) const 
                 std::time_t tt = std::mktime(&tm);
                 auto fileTime = std::chrono::system_clock::from_time_t(tt);
                 
-                if (currentFilter_.operation == ">") {
-                    return fileTime > currentFilter_.dateValue;
-                } else if (currentFilter_.operation == "<") {
-                    return fileTime < currentFilter_.dateValue;
-                } else if (currentFilter_.operation == "==") {
-                    return fileTime == currentFilter_.dateValue;
+                if (filter.operation == ">") {
+                    return fileTime > filter.dateValue;
+                } else if (filter.operation == "<") {
+                    return fileTime < filter.dateValue;
+                } else if (filter.operation == "==") {
+                    return fileTime == filter.dateValue;
                 }
             }
             break;
         }
             
         case Filter::Type::NAME: {
-            bool matches = std::regex_match(info.name, currentFilter_.namePattern);
-            return currentFilter_.include ? matches : !matches;
+            bool matches = std::regex_match(info.name, filter.namePattern);
+            return filter.include ? matches : !matches;
         }
             
         case Filter::Type::NONE:
@@ -197,7 +211,6 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
                                           bool isLast,
                                           bool showHidden,
                                           bool isRoot) {
-    // Проверяем глубину
     if (maxDepth_ > 0 && currentDepth_ >= maxDepth_) {
         if (!isRoot) {
             displayStats_.hiddenByDepth++;
@@ -205,7 +218,6 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
         return;
     }
     
-    // Для не корневых директорий добавляем в дерево и статистику
     if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         if (shouldIncludeEntry(path, info)) {
