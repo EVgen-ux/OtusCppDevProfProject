@@ -111,9 +111,13 @@ int main(int argc, char* argv[]) {
             ColorManager::disableColors();
         } else if (arg == "--json") {
             useJSON = true;
+            useColors = false;
+            ColorManager::disableColors();
         } else if (arg == "-o" || arg == "--output") {
             if (i + 1 < argc) {
                 outputFile = argv[++i];
+                useColors == false;
+                ColorManager::disableColors();
             } else {
                 std::cerr << "Ошибка: опция -o требует имени файла" << std::endl;
                 return 1;
