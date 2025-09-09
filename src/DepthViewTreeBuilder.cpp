@@ -67,8 +67,13 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
     
     try {
         for (const auto& entry : fs::directory_iterator(path)) {
-            if (!FileSystem::isHidden(entry.path()) || showHidden) {
+            bool isHidden = FileSystem::isHidden(entry.path());
+            
+            if (!isHidden || showHidden) {
                 entries.push_back(entry);
+            } else {
+        
+                hiddenObjectsCount_++;
             }
         }
     } catch (const fs::filesystem_error&) {

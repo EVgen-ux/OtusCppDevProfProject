@@ -29,6 +29,7 @@ protected:
     Statistics stats_;
     DisplayStatistics displayStats_;
     std::vector<std::string> treeLines_;
+    size_t hiddenObjectsCount_ = 0;
     
     virtual void traverseDirectory(const fs::path& path, 
                                  const std::string& prefix, 

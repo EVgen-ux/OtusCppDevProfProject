@@ -316,11 +316,22 @@ int main(int argc, char* argv[]) {
                     if (displayStats.hiddenByDepth > 0) {
                         outFile << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
                     }
+                    // Добавьте это условие
+                    if (displayStats.hiddenObjects > 0 && !showHidden) {
+                        outFile << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                                << " (используйте -a для показа)" << std::endl;
+                    }
                 } else {
                     auto stats = builder->getStatistics();
                     outFile << "  Директорий: " << stats.totalDirectories << std::endl;
                     outFile << "  Файлов: " << stats.totalFiles << std::endl;
                     outFile << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+                    // Добавьте это условие
+                    auto displayStats = builder->getDisplayStatistics();
+                    if (displayStats.hiddenObjects > 0 && !showHidden) {
+                        outFile << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                                << " (используйте -a для показа)" << std::endl;
+                    }
                 }
                 
                 if (useFilteredBuilder) {
@@ -349,13 +360,23 @@ int main(int argc, char* argv[]) {
                     if (displayStats.hiddenByDepth > 0) {
                         std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
                     }
+                    if (displayStats.hiddenObjects > 0 && !showHidden) {
+                    std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                              << " (используйте -a для показа)" << std::endl;
+                    }
                 } else {
                     auto stats = builder->getStatistics();
                     std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
                     std::cout << "  Файлов: " << stats.totalFiles << std::endl;
                     std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+
+                    auto displayStats = builder->getDisplayStatistics();
+                    if (displayStats.hiddenObjects > 0 && !showHidden) {
+                         std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                                   << " (используйте -a для показа)" << std::endl;
+        }
                 }
-                
+
                 if (useFilteredBuilder) {
                     std::cout << "  (Применены фильтры)" << std::endl;
                 }

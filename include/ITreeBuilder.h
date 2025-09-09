@@ -20,6 +20,7 @@ public:
         size_t displayedDirectories = 0;
         uint64_t displayedSize = 0;
         size_t hiddenByDepth = 0;
+        size_t hiddenObjects = 0;
 
         DisplayStatistics() : Statistics(), displayedFiles(0), displayedDirectories(0), 
                          displayedSize(0), hiddenByDepth(0) {}

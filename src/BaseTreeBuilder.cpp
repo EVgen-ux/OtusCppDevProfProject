@@ -11,7 +11,8 @@ void BaseTreeBuilder::buildTree(bool showHidden) {
     treeLines_.clear();
     stats_ = Statistics{0, 0, 0};
     displayStats_ = DisplayStatistics{};
-    
+    hiddenObjectsCount_ = 0;
+
     // Добавляем корневую директорию с использованием ColorManager
     treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
     
@@ -47,8 +48,13 @@ void BaseTreeBuilder::traverseDirectory(const fs::path& path,
     
     try {
         for (const auto& entry : fs::directory_iterator(path)) {
-            if (!FileSystem::isHidden(entry.path()) || showHidden) {
+            bool isHidden = FileSystem::isHidden(entry.path());
+            
+            if (!isHidden || showHidden) {
                 entries.push_back(entry);
+            } else {
+                // Увеличиваем счетчик скрытых объектов
+                hiddenObjectsCount_++;
             }
         }
     } catch (const fs::filesystem_error&) {
@@ -120,7 +126,9 @@ ITreeBuilder::Statistics BaseTreeBuilder::getStatistics() const {
 }
 
 ITreeBuilder::DisplayStatistics BaseTreeBuilder::getDisplayStatistics() const {
-    return displayStats_;
+    DisplayStatistics result = displayStats_;
+    result.hiddenObjects = hiddenObjectsCount_; 
+    return result;
 }
 
 const std::vector<std::string>& BaseTreeBuilder::getTreeLines() const {
