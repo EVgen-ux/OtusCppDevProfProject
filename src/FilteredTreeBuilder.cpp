@@ -155,10 +155,10 @@ bool FilteredTreeBuilder::shouldIncludeEntry(const fs::path& path, const FileSys
 
 bool FilteredTreeBuilder::matchesAllFilters(const FileSystem::FileInfo& info) const {
     if (filters_.empty()) {
-        return true; // Нет фильтров - включаем всё
+        return true; 
     }
     
-    // Все фильтры должны быть пройдены (логическое И)
+    
     for (const auto& filter : filters_) {
         if (!matchesSingleFilter(info, filter)) {
             return false;
@@ -252,8 +252,13 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
     
     try {
         for (const auto& entry : fs::directory_iterator(path)) {
-            if (!FileSystem::isHidden(entry.path()) || showHidden) {
+            bool isHidden = FileSystem::isHidden(entry.path());
+            
+            if (!isHidden || showHidden) {
                 entries.push_back(entry);
+            } else {
+               
+                hiddenObjectsCount_++;
             }
         }
     } catch (const fs::filesystem_error&) {
