@@ -7,7 +7,8 @@
 #include "JSONTreeBuilder.h"
 #include "constants.h"
 #include "FileSystem.h"
-#include "ColorManager.h" // Добавьте этот include
+#include "ColorManager.h"
+#include "GitHubTreeBuilder.h"
 
 void printHelp() {
     std::cout << "Tree Utility v" << constants::VERSION << std::endl;
@@ -25,6 +26,8 @@ void printHelp() {
     std::cout << "  --no-color          Отключить цветное оформление" << std::endl;
     std::cout << "  --json              Вывод в формате JSON" << std::endl; 
     std::cout << "  -o, --output FILE   Сохранить вывод в файл" << std::endl;
+    std::cout << "  -g, --github URL     Построить дерево из GitHub репозитория" << std::endl;
+    std::cout << "  --github-depth N     Глубина для GitHub (по умолчанию: 10)" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
     std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
@@ -38,6 +41,8 @@ void printHelp() {
     std::cout << "  -L 2 -s \">100MB\"  # Сначала ограничить глубину, потом фильтровать" << std::endl;
     std::cout << "  -s \">100MB\" -L 2  # Сначала отфильтровать, потом ограничить глубину" << std::endl;
     std::cout << "  Можно комбинировать несколько фильтров: -s '>100MB' -x '*.tmp'" << std::endl;
+    std::cout << "  tree-utility --github https://github.com/user/repo" << std::endl;
+    std::cout << "  tree-utility -g https://github.com/user/repo/tree/main/src --github-depth 3" << std::endl;
 }
 
 void printVersion() {
@@ -93,6 +98,7 @@ int main(int argc, char* argv[]) {
     bool useFilteredBuilder = false;
     bool useColors = true;
     bool useJSON = false;
+    bool isGitHub = false;
     std::string outputFile;
 
     std::unique_ptr<ITreeBuilder> builder;
@@ -142,6 +148,17 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Ошибка: опция -L требует значения" << std::endl;
                 return 1;
             }
+        } else if (arg == "--github" || arg == "-g") {
+            if (i + 1 < argc) {
+        std::string githubUrl = argv[++i];
+        builder = std::make_unique<GitHubTreeBuilder>(githubUrl, maxDepth > 0 ? maxDepth : 3);
+        useColors = true;
+        isGitHub = true;
+        useFilteredBuilder = false; // Отключаем фильтры для GitHub
+    } else {
+        std::cerr << "Ошибка: опция --github требует URL" << std::endl;
+        return 1;
+    }
         } else if (arg == "-s" || arg == "--size") {
             useFilteredBuilder = true;
             if (i + 1 < argc) {
@@ -270,7 +287,7 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Если билдер еще не создан, создаем его
+   
     if (!builder) {
         if (maxDepth > 0) {
             builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
@@ -353,44 +370,56 @@ int main(int argc, char* argv[]) {
             builder->printTree();
             
             if (!useJSON) {
-                std::cout << std::endl;
-                std::cout << "Статистика:" << std::endl;
-                
-                if (maxDepth > 0) {
-                    auto displayStats = builder->getDisplayStatistics();
-                    std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
-                    std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
-                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
-                    if (displayStats.hiddenByDepth > 0) {
-                        std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
-                    }
-                    if (displayStats.hiddenObjects > 0 && !showHidden) {
-                    std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
-                              << " (используйте -a для показа)" << std::endl;
-                    }
-                } else {
-                    auto stats = builder->getStatistics();
-                    std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
-                    std::cout << "  Файлов: " << stats.totalFiles << std::endl;
-                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
-
-                    auto displayStats = builder->getDisplayStatistics();
-                    if (displayStats.hiddenObjects > 0 && !showHidden) {
-                         std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
-                                   << " (используйте -a для показа)" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Статистика:" << std::endl;
+    
+    // Для GitHub используем специальную статистику
+    if (isGitHub) {
+        auto displayStats = builder->getDisplayStatistics();
+        std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+        std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+        std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+        std::cout << "  API запросов: " << displayStats.apiRequests << std::endl;
+        
+        if (displayStats.apiRequests >= 50) {
+            std::cout << "  Близко к лимиту GitHub API (60/час)" << std::endl;
         }
-                }
-
-                if (useFilteredBuilder) {
-                    std::cout << "  (Применены фильтры)" << std::endl;
-                }
+    } 
+    // Для локальных файлов используем обычную статистику
+    else {
+        if (maxDepth > 0) {
+            auto displayStats = builder->getDisplayStatistics();
+            std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+            std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+            if (displayStats.hiddenByDepth > 0) {
+                std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
             }
+        } else {
+            auto stats = builder->getStatistics();
+            std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
+            std::cout << "  Файлов: " << stats.totalFiles << std::endl;
+            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+        }
+
+        auto displayStats = builder->getDisplayStatistics();
+        if (displayStats.hiddenObjects > 0 && !showHidden) {
+            std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                      << " (используйте -a для показа)" << std::endl;
+        }
+
+        if (useFilteredBuilder) {
+            std::cout << "  (Применены фильтры)" << std::endl;
+        }
+    }
+}
         }
         
     } catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;
         return 1;
     }
+
     
     return 0;
 }
