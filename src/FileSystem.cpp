@@ -1,5 +1,5 @@
 #include "FileSystem.h"
-#include "ColorManager.h" // Добавьте этот include
+#include "ColorManager.h"
 #include <iostream>
 #include <iomanip>
 #include <locale>
@@ -81,7 +81,7 @@ std::string FileSystem::formatNumber(uint64_t number) {
         result = numStr[i] + result;
         count++;
         if (count % 3 == 0 && i != 0) {
-            result = " " + result; // Используем тонкий пробел
+            result = " " + result;
         }
     }
     
@@ -97,7 +97,7 @@ std::string FileSystem::formatSizeWithBytes(uint64_t size) {
 std::string FileSystem::formatSizeBothSystems(uint64_t size) {
     std::stringstream result;
     
-    // Двоичные приставки (1 KiB = 1024 B, 1 MiB = 1024 KiB, и т.д.)
+    // Двоичные приставки
     std::stringstream ssBinary;
     ssBinary << std::fixed << std::setprecision(1);
     
@@ -109,28 +109,20 @@ std::string FileSystem::formatSizeBothSystems(uint64_t size) {
     } else if (size < constants::GB) {
         double mbSize = static_cast<double>(size) / constants::MB;
         ssBinary << mbSize << " MiB";
-    } else if (size < constants::TB) {
+    } else {
         double gbSize = static_cast<double>(size) / constants::GB;
         ssBinary << gbSize << " GiB";
-    } else {
-        double tbSize = static_cast<double>(size) / constants::TB;
-        ssBinary << tbSize << " TiB";
     }
     
     std::string binaryResult = ssBinary.str();
-    size_t dotPos = binaryResult.find('.');
-    if (dotPos != std::string::npos) {
-        binaryResult[dotPos] = ',';
-    }
     
-    // Десятичные приставки (1 KB = 1000 B, 1 MB = 1000 KB, и т.д.)
-    std::stringstream ssDecimal;
-    ssDecimal << std::fixed << std::setprecision(1);
-    
+    // Десятичные приставки
     const uint64_t DECIMAL_KB = 1000;
     const uint64_t DECIMAL_MB = 1000 * DECIMAL_KB;
     const uint64_t DECIMAL_GB = 1000 * DECIMAL_MB;
-    const uint64_t DECIMAL_TB = 1000 * DECIMAL_GB;
+    
+    std::stringstream ssDecimal;
+    ssDecimal << std::fixed << std::setprecision(1);
     
     if (size < DECIMAL_KB) {
         ssDecimal << size << " B";
@@ -140,26 +132,15 @@ std::string FileSystem::formatSizeBothSystems(uint64_t size) {
     } else if (size < DECIMAL_GB) {
         double mbSize = static_cast<double>(size) / DECIMAL_MB;
         ssDecimal << mbSize << " MB";
-    } else if (size < DECIMAL_TB) {
+    } else {
         double gbSize = static_cast<double>(size) / DECIMAL_GB;
         ssDecimal << gbSize << " GB";
-    } else {
-        double tbSize = static_cast<double>(size) / DECIMAL_TB;
-        ssDecimal << tbSize << " TB";
     }
     
     std::string decimalResult = ssDecimal.str();
-    dotPos = decimalResult.find('.');
-    if (dotPos != std::string::npos) {
-        decimalResult[dotPos] = ',';
-    }
-    
-    // Форматируем байты с разделителями
     std::string formattedBytes = formatNumber(size) + " bytes";
     
-    // Собираем все вместе
     result << binaryResult << " / " << decimalResult << " (" << formattedBytes << ")";
-    
     return result.str();
 }
 
@@ -200,13 +181,7 @@ std::string FileSystem::formatPermissions(const fs::perms& permissions) {
 bool FileSystem::isHidden(const fs::path& path) {
     std::string filename = path.filename().string();
     if (filename.empty()) return false;
-    
-    // Для Windows и Unix-like систем
-    #ifdef _WIN32
-        return filename[0] == '.';
-    #else
-        return filename[0] == '.';
-    #endif
+    return filename[0] == '.';
 }
 
 bool FileSystem::isExecutable(const fs::path& path) {
@@ -227,13 +202,12 @@ bool FileSystem::isSymlink(const fs::path& path) {
 }
 
 std::string FileSystem::getFileColor(const FileInfo& info) {
-    // Если цвета отключены, возвращаем пустую строку
     if (!ColorManager::areColorsEnabled()) {
         return "";
     }
     
     if (info.isHidden) {
-        return constants::HIDDEN_COLOR;
+        return constants::BLACK + constants::BOLD;
     }
     
     if (info.isDirectory) {
@@ -248,8 +222,7 @@ std::string FileSystem::getFileColor(const FileInfo& info) {
         return constants::EXECUTABLE_COLOR;
     }
     
-    // Определяем цвет по расширению файла
-    std::string extension = info.name.substr(info.name.find_last_of(".") + 1);
+     std::string extension = info.name.substr(info.name.find_last_of(".") + 1);
     std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
     
     // Изображения
@@ -263,31 +236,34 @@ std::string FileSystem::getFileColor(const FileInfo& info) {
     if (extension == "mov" || extension == "mp4" || extension == "avi" || 
         extension == "mkv" || extension == "wmv" || extension == "flv" ||
         extension == "webm" || extension == "m4v" || extension == "mpeg") {
-        return constants::VIDEO_COLOR;
+        return constants::MAGENTA + constants::BOLD;  // Яркий пурпурный для видео
     }
     
     // Аудио файлы
     if (extension == "mp3" || extension == "wav" || extension == "flac" || 
         extension == "aac" || extension == "ogg" || extension == "wma") {
-        return constants::AUDIO_COLOR;
+        return constants::CYAN + constants::BOLD;  // Яркий голубой для аудио
     }
     
     // Архивы
     if (extension == "zip" || extension == "rar" || extension == "tar" || 
-        extension == "gz" || extension == "7z" || extension == "bz2") {
+        extension == "gz" || extension == "7z" || extension == "bz2" ||
+        extension == "xz" || extension == "lz" || extension == "arj") {
         return constants::ARCHIVE_COLOR;
     }
     
     // Конфигурационные файлы
     if (extension == "conf" || extension == "config" || extension == "ini" || 
         extension == "json" || extension == "xml" || extension == "yaml" || 
-        extension == "yml" || extension == "toml") {
+        extension == "yml" || extension == "toml" || extension == "properties") {
         return constants::CONFIG_COLOR;
     }
     
     // Документы
     if (extension == "txt" || extension == "doc" || extension == "docx" || 
-        extension == "pdf" || extension == "rtf" || extension == "odt") {
+        extension == "pdf" || extension == "rtf" || extension == "odt" ||
+        extension == "xls" || extension == "xlsx" || extension == "ppt" || 
+        extension == "pptx" || extension == "epub" || extension == "mobi") {
         return constants::DOCUMENT_COLOR;
     }
     
@@ -295,8 +271,31 @@ std::string FileSystem::getFileColor(const FileInfo& info) {
     if (extension == "cpp" || extension == "h" || extension == "hpp" || 
         extension == "c" || extension == "java" || extension == "py" || 
         extension == "js" || extension == "html" || extension == "css" || 
-        extension == "php" || extension == "rb" || extension == "go") {
+        extension == "php" || extension == "rb" || extension == "go" ||
+        extension == "rs" || extension == "swift" || extension == "kt" ||
+        extension == "ts" || extension == "scala" || extension == "pl" ||
+        extension == "lua" || extension == "sh" || extension == "bat" ||
+        extension == "ps1" || extension == "md" || extension == "tex") {
         return constants::CODE_COLOR;
+    }
+    
+    // Базы данных и данные
+    if (extension == "db" || extension == "sql" || extension == "sqlite" || 
+        extension == "mdb" || extension == "csv" || extension == "tsv" ||
+        extension == "dat" || extension == "log") {
+        return constants::YELLOW;  // Желтый для данных
+    }
+    
+    // Файлы бэкапов
+    if (extension == "bak" || extension == "backup" || extension == "old" ||
+        extension == "tmp" || extension == "temp") {
+        return constants::BLACK;  // Черный для временных файлов
+    }
+    
+    // Шрифты
+    if (extension == "ttf" || extension == "otf" || extension == "woff" || 
+        extension == "woff2" || extension == "eot") {
+        return constants::MAGENTA;  // Пурпурный для шрифтов
     }
     
     return constants::WHITE; // Стандартный цвет для остальных файлов

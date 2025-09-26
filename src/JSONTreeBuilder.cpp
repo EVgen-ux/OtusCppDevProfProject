@@ -1,113 +1,113 @@
 #include "JSONTreeBuilder.h"
+#include <algorithm>
 #include <iostream>
-#include <regex>
 
-JSONTreeBuilder::JSONTreeBuilder(std::unique_ptr<ITreeBuilder> builder)
-    : builder_(std::move(builder)) {}
+namespace fs = std::filesystem;
+
+JSONTreeBuilder::JSONTreeBuilder(const std::string& rootPath) 
+    : TreeBuilder(rootPath) {}
 
 void JSONTreeBuilder::buildTree(bool showHidden) {
-    builder_->buildTree(showHidden);
-    convertToJSON(builder_->getTreeLines(), jsonTree_);
+    // Сначала строим обычное дерево для статистики
+    TreeBuilder::buildTree(showHidden);  
+    // Затем генерируем JSON
+    buildJSONTree();
+}
+
+void JSONTreeBuilder::buildJSONTree() {
+    std::stringstream json;
+    
+    json << "{\n";
+    json << "  \"path\": \"" << escapeJSONString(rootPath_.string()) << "\",\n";
+    json << "  \"name\": \"" << escapeJSONString(rootPath_.filename().string()) << "\",\n";
+    json << "  \"type\": \"directory\",\n";
+    
+    auto stats = getStatistics();
+    json << "  \"statistics\": {\n";
+    json << "    \"directories\": " << stats.totalDirectories << ",\n";
+    json << "    \"files\": " << stats.totalFiles << ",\n";
+    json << "    \"totalSize\": " << stats.totalSize << ",\n";
+    json << "    \"totalSizeFormatted\": \"" << FileSystem::formatSize(stats.totalSize) << "\"\n";
+    json << "  },\n";
+    
+    json << "  \"contents\": [\n";
+    
+    try {
+        std::vector<fs::directory_entry> entries;
+        for (const auto& entry : fs::directory_iterator(rootPath_)) {
+            entries.push_back(entry);
+        }
+        
+        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+            if (a.is_directory() != b.is_directory()) {
+                return a.is_directory() > b.is_directory();
+            }
+            return a.path().filename().string() < b.path().filename().string();
+        });
+        
+        for (size_t i = 0; i < entries.size(); ++i) {
+            const auto& entry = entries[i];
+            auto info = FileSystem::getFileInfo(entry.path());
+            
+            json << "    {\n";
+            json << "      \"name\": \"" << escapeJSONString(info.name) << "\",\n";
+            json << "      \"type\": \"" << (info.isDirectory ? "directory" : "file") << "\",\n";
+            
+            if (info.isDirectory) {
+                json << "      \"size\": 0,\n";
+                json << "      \"sizeFormatted\": \"0 B\"\n";
+            } else {
+                json << "      \"size\": " << info.size << ",\n";
+                json << "      \"sizeFormatted\": \"" << escapeJSONString(info.sizeFormatted) << "\"\n";
+            }
+            
+            json << "    }";
+            
+            if (i < entries.size() - 1) {
+                json << ",";
+            }
+            json << "\n";
+        }
+    } catch (const fs::filesystem_error&) {
+        // Игнорируем ошибки доступа
+    }
+    
+    json << "  ]\n";
+    json << "}";
+    
+    jsonOutput_ = json.str();
 }
 
 void JSONTreeBuilder::printTree() const {
-    std::cout << jsonTree_.dump(2) << std::endl;
-}
-
-ITreeBuilder::Statistics JSONTreeBuilder::getStatistics() const {
-    return builder_->getStatistics();
-}
-
-ITreeBuilder::DisplayStatistics JSONTreeBuilder::getDisplayStatistics() const {
-    return builder_->getDisplayStatistics();
-}
-
-const std::vector<std::string>& JSONTreeBuilder::getTreeLines() const {
-    return builder_->getTreeLines();
+    std::cout << jsonOutput_ << std::endl;
 }
 
 std::string JSONTreeBuilder::getJSON() const {
-    return jsonTree_.dump(2);
+    return jsonOutput_;
 }
 
-void JSONTreeBuilder::convertToJSON(const std::vector<std::string>& treeLines, json& output) {
-    if (treeLines.empty()) {
-        output = json::object();
-        return;
-    }
+std::string JSONTreeBuilder::escapeJSONString(const std::string& str) const {
+    std::stringstream escaped;
     
-    json root;
-    root["name"] = ".";
-    root["type"] = "directory";
-    root["children"] = json::array();
-    
-    // Стек для отслеживания текущей позиции в дереве
-    std::vector<json*> stack;
-    stack.push_back(&root);
-    
-    // Регулярные выражения для парсинга строк
-    std::regex dirRegex(R"((.*)\[DIR\].*\|\s*(.*)\s*\|\s*(.*))");
-    std::regex fileRegex(R"((.*)\(([^)]+)\).*\|\s*(.*)\s*\|\s*(.*))");
-    std::regex hiddenRegex(R"((.*)\[DIR\]\s*\(содержимое скрыто\).*\|\s*(.*)\s*\|\s*(.*))");
-    
-    for (size_t i = 1; i < treeLines.size(); ++i) { // Пропускаем корневую директорию
-        const auto& line = treeLines[i];
-        
-        // Определяем уровень вложенности по отступам - используем ASCII символы
-        size_t level = 0;
-        size_t pos = 0;
-        while (pos < line.size() && (line[pos] == ' ' || line[pos] == '|' || 
-               line[pos] == '+' || line[pos] == '\\')) {
-            if (line[pos] == ' ' || line[pos] == '|') level++;
-            pos += 4; // Каждый уровень отступа - 4 символа
-        }
-        
-        // Убираем лишние уровни из стека
-        while (stack.size() > level + 1) {
-            stack.pop_back();
-        }
-        
-        std::smatch matches;
-        json item;
-        
-        if (std::regex_match(line, matches, hiddenRegex)) {
-            // Директория со скрытым содержимым
-            item["name"] = matches[1].str();
-            item["type"] = "directory";
-            item["last_modified"] = matches[2].str();
-            item["permissions"] = matches[3].str();
-            item["content_hidden"] = true;
-        }
-        else if (std::regex_match(line, matches, dirRegex)) {
-            // Обычная директория
-            item["name"] = matches[1].str();
-            item["type"] = "directory";
-            item["last_modified"] = matches[2].str();
-            item["permissions"] = matches[3].str();
-            item["children"] = json::array();
-        }
-        else if (std::regex_match(line, matches, fileRegex)) {
-            // Файл
-            item["name"] = matches[1].str();
-            item["type"] = "file";
-            item["size"] = matches[2].str();
-            item["last_modified"] = matches[3].str();
-            item["permissions"] = matches[4].str();
-        }
-        else {
-            // Неизвестный формат
-            item["name"] = line.substr(pos);
-            item["type"] = "unknown";
-        }
-        
-        // Добавляем элемент в текущий уровень
-        (*stack.back())["children"].push_back(item);
-        
-        // Если это директория, добавляем в стек для дочерних элементов
-        if (item.contains("children")) {
-            stack.push_back(&(*stack.back())["children"].back());
+    for (char c : str) {
+        switch (c) {
+            case '"': escaped << "\\\""; break;
+            case '\\': escaped << "\\\\"; break;
+            case '\b': escaped << "\\b"; break;
+            case '\f': escaped << "\\f"; break;
+            case '\n': escaped << "\\n"; break;
+            case '\r': escaped << "\\r"; break;
+            case '\t': escaped << "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20 || static_cast<unsigned char>(c) == 0x7f) {
+                    escaped << "\\u" << std::hex << std::setw(4) << std::setfill('0') 
+                           << static_cast<int>(c);
+                } else {
+                    escaped << c;
+                }
+                break;
         }
     }
     
-    output = root;
+    return escaped.str();
 }

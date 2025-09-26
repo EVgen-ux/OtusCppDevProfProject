@@ -1,10 +1,9 @@
 #pragma once
-
 #include <string>
 #include <cstdint>
 
 namespace constants {
-    const std::string VERSION = "1.0.0";
+    const std::string VERSION = "2.0.0";
     const std::string AUTHOR = "EVgen-ux";
     
     // Символы для отрисовки дерева
@@ -22,8 +21,6 @@ namespace constants {
     // ANSI цветовые коды
     const std::string RESET = "\033[0m";
     const std::string BOLD = "\033[1m";
-    
-    // Основные цвета
     const std::string BLACK = "\033[30m";
     const std::string RED = "\033[31m";
     const std::string GREEN = "\033[32m";
@@ -43,14 +40,11 @@ namespace constants {
     const std::string HIDDEN_CONTENT_COLOR = BRIGHT_YELLOW; // Ярко-желтый для "содержимое скрыто"
     
     // Цвета для типов файлов
-    const std::string EXECUTABLE_COLOR = GREEN + BOLD;
-    const std::string SYMLINK_COLOR = CYAN;
-    const std::string IMAGE_COLOR = MAGENTA;
-    const std::string ARCHIVE_COLOR = RED;
-    const std::string CONFIG_COLOR = YELLOW;
-    const std::string DOCUMENT_COLOR = WHITE;
-    const std::string CODE_COLOR = GREEN;
-    const std::string VIDEO_COLOR = MAGENTA + BOLD;
-    const std::string AUDIO_COLOR = CYAN + BOLD;
-    const std::string HIDDEN_COLOR = BLACK + BOLD;
+    const std::string EXECUTABLE_COLOR = GREEN + BOLD;   // Зеленый для исполняемых файлов
+    const std::string SYMLINK_COLOR = CYAN;              // Голубой для симлинков
+    const std::string IMAGE_COLOR = MAGENTA;             // Пурпурный для изображений
+    const std::string ARCHIVE_COLOR = RED;               // Красный для архивов
+    const std::string CONFIG_COLOR = YELLOW;             // Желтый для конфигов
+    const std::string DOCUMENT_COLOR = WHITE;            // Белый для документов
+    const std::string CODE_COLOR = GREEN;                // Зеленый для кода
 }

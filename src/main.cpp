@@ -1,14 +1,14 @@
 #include <iostream>
 #include <string>
 #include <memory>
-#include <fstream> 
+#include <fstream>
+#include "TreeBuilder.h"
 #include "DepthViewTreeBuilder.h"
+#include "GitHubTreeBuilder.h"
 #include "FilteredTreeBuilder.h"
 #include "JSONTreeBuilder.h"
-#include "constants.h"
 #include "FileSystem.h"
 #include "ColorManager.h"
-#include "GitHubTreeBuilder.h"
 
 void printHelp() {
     std::cout << "Tree Utility v" << constants::VERSION << std::endl;
@@ -24,25 +24,20 @@ void printHelp() {
     std::cout << "  -n, --name PATTERN  Включить файлы по шаблону имени" << std::endl;
     std::cout << "  -x, --exclude PATTERN Исключить файлы по шаблону имени" << std::endl;
     std::cout << "  --no-color          Отключить цветное оформление" << std::endl;
-    std::cout << "  --json              Вывод в формате JSON" << std::endl; 
+    std::cout << "  --json              Вывод в формате JSON" << std::endl;
+    std::cout << "  -g, --github URL    Построить дерево из GitHub репозитория" << std::endl;
+    std::cout << "  --github-depth N    Глубина для GitHub (по умолчанию: 3)" << std::endl;
     std::cout << "  -o, --output FILE   Сохранить вывод в файл" << std::endl;
-    std::cout << "  -g, --github URL     Построить дерево из GitHub репозитория" << std::endl;
-    std::cout << "  --github-depth N     Глубина для GitHub (по умолчанию: 10)" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
     std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
-    std::cout << "  tree-utility /path/to/dir -a -L 3" << std::endl;
+    std::cout << "  tree-utility . -a -L 3" << std::endl;
     std::cout << "  tree-utility . -s \"> 100MB\"   # Файлы > 100MB" << std::endl;
     std::cout << "  tree-utility . -d \"> 2023-01-01\" # Файлы после 2023-01-01" << std::endl;
     std::cout << "  tree-utility . -n \"*.cpp\"      # Только .cpp файлы" << std::endl;
     std::cout << "  tree-utility . -x \"test.*\"     # Исключить test файлы" << std::endl;
-    std::cout << std::endl;
-    std::cout << "Примечание: порядок опций влияет на результат обработки:" << std::endl;
-    std::cout << "  -L 2 -s \">100MB\"  # Сначала ограничить глубину, потом фильтровать" << std::endl;
-    std::cout << "  -s \">100MB\" -L 2  # Сначала отфильтровать, потом ограничить глубину" << std::endl;
-    std::cout << "  Можно комбинировать несколько фильтров: -s '>100MB' -x '*.tmp'" << std::endl;
-    std::cout << "  tree-utility --github https://github.com/user/repo" << std::endl;
-    std::cout << "  tree-utility -g https://github.com/user/repo/tree/main/src --github-depth 3" << std::endl;
+    std::cout << "  tree-utility . --json         # Вывод в формате JSON" << std::endl;
+    std::cout << "  tree-utility . --json -o output.json # Сохранить в JSON файл" << std::endl;
 }
 
 void printVersion() {
@@ -99,10 +94,12 @@ int main(int argc, char* argv[]) {
     bool useColors = true;
     bool useJSON = false;
     bool isGitHub = false;
+    size_t githubDepth = 3;
     std::string outputFile;
 
-    std::unique_ptr<ITreeBuilder> builder;
+    std::unique_ptr<TreeBuilder> builder;
     
+    // Парсинг аргументов командной строки
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         
@@ -122,7 +119,7 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-o" || arg == "--output") {
             if (i + 1 < argc) {
                 outputFile = argv[++i];
-                useColors == false;
+                useColors = false;
                 ColorManager::disableColors();
             } else {
                 std::cerr << "Ошибка: опция -o требует имени файла" << std::endl;
@@ -134,12 +131,6 @@ int main(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 try {
                     maxDepth = std::stoul(argv[++i]);
-                    // Пересоздаем билдер с новой глубиной
-                    if (maxDepth > 0) {
-                        builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
-                    } else {
-                        builder = ITreeBuilder::create(path);
-                    }
                 } catch (const std::exception& e) {
                     std::cerr << "Ошибка: неверное значение для глубины: " << argv[i] << std::endl;
                     return 1;
@@ -148,17 +139,6 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Ошибка: опция -L требует значения" << std::endl;
                 return 1;
             }
-        } else if (arg == "--github" || arg == "-g") {
-            if (i + 1 < argc) {
-        std::string githubUrl = argv[++i];
-        builder = std::make_unique<GitHubTreeBuilder>(githubUrl, maxDepth > 0 ? maxDepth : 3);
-        useColors = true;
-        isGitHub = true;
-        useFilteredBuilder = false; // Отключаем фильтры для GitHub
-    } else {
-        std::cerr << "Ошибка: опция --github требует URL" << std::endl;
-        return 1;
-    }
         } else if (arg == "-s" || arg == "--size") {
             useFilteredBuilder = true;
             if (i + 1 < argc) {
@@ -186,16 +166,16 @@ int main(int argc, char* argv[]) {
                 
                 try {
                     uint64_t size = parseSize(sizeStr);
-                    FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                    if (!filteredBuilder) {
-                        size_t currentDepth = maxDepth;
+                    if (!builder) {
                         builder = std::make_unique<FilteredTreeBuilder>(path);
-                        filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                        if (currentDepth > 0) {
-                            filteredBuilder->setMaxDepth(currentDepth);
-                        }
+                    } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                        // Если builder уже создан, но не FilteredTreeBuilder, пересоздаем
+                        builder = std::make_unique<FilteredTreeBuilder>(path);
                     }
-                    filteredBuilder->addSizeFilter(size, op);
+                    
+                    if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                        filteredBuilder->addSizeFilter(size, op);
+                    }
                 } catch (const std::exception& e) {
                     std::cerr << "Ошибка: " << e.what() << std::endl;
                     return 1;
@@ -220,16 +200,15 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
                 
-                FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                if (!filteredBuilder) {
-                    size_t currentDepth = maxDepth;
+                if (!builder) {
                     builder = std::make_unique<FilteredTreeBuilder>(path);
-                    filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                    if (currentDepth > 0) {
-                        filteredBuilder->setMaxDepth(currentDepth);
-                    }
+                } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                 }
-                filteredBuilder->addDateFilter(dateStr, op);
+                
+                if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    filteredBuilder->addDateFilter(dateStr, op);
+                }
             } else {
                 std::cerr << "Ошибка: опция -d требует значения" << std::endl;
                 return 1;
@@ -238,16 +217,15 @@ int main(int argc, char* argv[]) {
             useFilteredBuilder = true;
             if (i + 1 < argc) {
                 std::string pattern = argv[++i];
-                FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                if (!filteredBuilder) {
-                    size_t currentDepth = maxDepth;
+                if (!builder) {
                     builder = std::make_unique<FilteredTreeBuilder>(path);
-                    filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                    if (currentDepth > 0) {
-                        filteredBuilder->setMaxDepth(currentDepth);
-                    }
+                } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                 }
-                filteredBuilder->addNameFilter(pattern, true);
+                
+                if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    filteredBuilder->addNameFilter(pattern, true);
+                }
             } else {
                 std::cerr << "Ошибка: опция -n требует шаблона" << std::endl;
                 return 1;
@@ -256,54 +234,69 @@ int main(int argc, char* argv[]) {
             useFilteredBuilder = true;
             if (i + 1 < argc) {
                 std::string pattern = argv[++i];
-                FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                if (!filteredBuilder) {
-                    size_t currentDepth = maxDepth;
+                if (!builder) {
                     builder = std::make_unique<FilteredTreeBuilder>(path);
-                    filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                    if (currentDepth > 0) {
-                        filteredBuilder->setMaxDepth(currentDepth);
-                    }
+                } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    builder = std::make_unique<FilteredTreeBuilder>(path);
                 }
-                filteredBuilder->addNameFilter(pattern, false);
+                
+                if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+                    filteredBuilder->addNameFilter(pattern, false);
+                }
             } else {
                 std::cerr << "Ошибка: опция -x требует шаблона" << std::endl;
                 return 1;
             }
-        } else if (arg[0] != '-') {
+        } else if (arg == "--github" || arg == "-g") {
+    if (i + 1 < argc) {
+        std::string githubUrl = argv[++i];
+        builder = std::make_unique<GitHubTreeBuilder>(githubUrl, githubDepth);
+        isGitHub = true;
+        useFilteredBuilder = false;
+    } else {
+        std::cerr << "Ошибка: опция --github требует URL" << std::endl;
+        return 1;
+    }
+} else if (arg == "--github-depth") {
+    if (i + 1 < argc) {
+        githubDepth = std::stoul(argv[++i]);
+    }
+}
+        
+        
+        else if (arg[0] != '-') {
             path = arg;
-            // Обновляем путь в билдере
-            if (DepthViewTreeBuilder* depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(builder.get())) {
-                builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
-            } else if (FilteredTreeBuilder* filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-                builder = std::make_unique<FilteredTreeBuilder>(path);
-                filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get());
-                if (maxDepth > 0) {
-                    filteredBuilder->setMaxDepth(maxDepth);
-                }
-            } else {
-                builder = ITreeBuilder::create(path);
-            }
         }
     }
     
-   
+    // Создаем builder
     if (!builder) {
-        if (maxDepth > 0) {
+        if (useJSON) {
+            builder = std::make_unique<JSONTreeBuilder>(path);
+        } else if (maxDepth > 0) {
             builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
+        } else if (useFilteredBuilder) {
+            builder = std::make_unique<FilteredTreeBuilder>(path);
         } else {
-            builder = ITreeBuilder::create(path);
+            builder = std::make_unique<TreeBuilder>(path);
+        }
+    } else if (useJSON && !dynamic_cast<JSONTreeBuilder*>(builder.get())) {
+        // Если запрошен JSON, но builder не JSONTreeBuilder, пересоздаем
+        builder = std::make_unique<JSONTreeBuilder>(path);
+    }
+    
+    // Применяем максимальную глубину если нужно
+    if (maxDepth > 0 && !useJSON) {
+        if (auto depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(builder.get())) {
+            depthBuilder->setMaxDepth(maxDepth);
+        } else if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+            filteredBuilder->setMaxDepth(maxDepth);
         }
     }
 
-    // Обертываем в JSON builder если нужно
-    if (useJSON) {
-        builder = std::make_unique<JSONTreeBuilder>(std::move(builder));
-    }
-
     try {
+        // Строим дерево
         builder->buildTree(showHidden);
-        
         // Вывод в файл или на консоль
         if (!outputFile.empty()) {
             std::ofstream outFile(outputFile);
@@ -311,12 +304,26 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Ошибка: не удалось открыть файл " << outputFile << " для записи" << std::endl;
                 return 1;
             }
+
+            if (isGitHub) {
+                auto displayStats = builder->getDisplayStatistics();
+                std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+                std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+                std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+                std::cout << "  API запросов: " << displayStats.apiRequests << std::endl;
+        
+                if (displayStats.apiRequests >= 50) {
+                std::cout << "  Близко к лимиту GitHub API (60/час)" << std::endl;
+                }
+            }
             
             if (useJSON) {
-                // Для JSON выводим напрямую
-                auto jsonBuilder = dynamic_cast<JSONTreeBuilder*>(builder.get());
-                if (jsonBuilder) {
+                // Для JSON выводим специальным методом
+                if (auto jsonBuilder = dynamic_cast<JSONTreeBuilder*>(builder.get())) {
                     outFile << jsonBuilder->getJSON() << std::endl;
+                } else {
+                    std::cerr << "Ошибка: JSON builder не доступен" << std::endl;
+                    return 1;
                 }
             } else {
                 // Для обычного вывода сохраняем дерево
@@ -337,22 +344,17 @@ int main(int argc, char* argv[]) {
                     if (displayStats.hiddenByDepth > 0) {
                         outFile << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
                     }
-                    // Добавьте это условие
-                    if (displayStats.hiddenObjects > 0 && !showHidden) {
-                        outFile << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
-                                << " (используйте -a для показа)" << std::endl;
-                    }
                 } else {
                     auto stats = builder->getStatistics();
                     outFile << "  Директорий: " << stats.totalDirectories << std::endl;
                     outFile << "  Файлов: " << stats.totalFiles << std::endl;
                     outFile << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
-                    // Добавьте это условие
-                    auto displayStats = builder->getDisplayStatistics();
-                    if (displayStats.hiddenObjects > 0 && !showHidden) {
-                        outFile << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
-                                << " (используйте -a для показа)" << std::endl;
-                    }
+                }
+                
+                auto displayStats = builder->getDisplayStatistics();
+                if (displayStats.hiddenObjects > 0 && !showHidden) {
+                    outFile << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                            << " (используйте -a для показа)" << std::endl;
                 }
                 
                 if (useFilteredBuilder) {
@@ -369,57 +371,42 @@ int main(int argc, char* argv[]) {
             
             builder->printTree();
             
+            // Для JSON не выводим статистику (она уже в JSON)
             if (!useJSON) {
-    std::cout << std::endl;
-    std::cout << "Статистика:" << std::endl;
-    
-    // Для GitHub используем специальную статистику
-    if (isGitHub) {
-        auto displayStats = builder->getDisplayStatistics();
-        std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
-        std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
-        std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
-        std::cout << "  API запросов: " << displayStats.apiRequests << std::endl;
-        
-        if (displayStats.apiRequests >= 50) {
-            std::cout << "  Близко к лимиту GitHub API (60/час)" << std::endl;
-        }
-    } 
-    // Для локальных файлов используем обычную статистику
-    else {
-        if (maxDepth > 0) {
-            auto displayStats = builder->getDisplayStatistics();
-            std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
-            std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
-            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
-            if (displayStats.hiddenByDepth > 0) {
-                std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
+                std::cout << std::endl;
+                std::cout << "Статистика:" << std::endl;
+                
+                if (maxDepth > 0) {
+                    auto displayStats = builder->getDisplayStatistics();
+                    std::cout << "  Директорий: " << displayStats.displayedDirectories << std::endl;
+                    std::cout << "  Файлов: " << displayStats.displayedFiles << std::endl;
+                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
+                    if (displayStats.hiddenByDepth > 0) {
+                        std::cout << "  Скрыто по глубине: " << displayStats.hiddenByDepth << " директорий" << std::endl;
+                    }
+                } else {
+                    auto stats = builder->getStatistics();
+                    std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
+                    std::cout << "  Файлов: " << stats.totalFiles << std::endl;
+                    std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
+                }
+
+                auto displayStats = builder->getDisplayStatistics();
+                if (displayStats.hiddenObjects > 0 && !showHidden) {
+                    std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
+                              << " (используйте -a для показа)" << std::endl;
+                }
+
+                if (useFilteredBuilder) {
+                    std::cout << "  (Применены фильтры)" << std::endl;
+                }
             }
-        } else {
-            auto stats = builder->getStatistics();
-            std::cout << "  Директорий: " << stats.totalDirectories << std::endl;
-            std::cout << "  Файлов: " << stats.totalFiles << std::endl;
-            std::cout << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
-        }
-
-        auto displayStats = builder->getDisplayStatistics();
-        if (displayStats.hiddenObjects > 0 && !showHidden) {
-            std::cout << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
-                      << " (используйте -a для показа)" << std::endl;
-        }
-
-        if (useFilteredBuilder) {
-            std::cout << "  (Применены фильтры)" << std::endl;
-        }
-    }
-}
         }
         
     } catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;
         return 1;
     }
-
     
     return 0;
 }

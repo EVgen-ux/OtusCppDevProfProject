@@ -1,5 +1,4 @@
 #include "FilteredTreeBuilder.h"
-#include "FileSystem.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -14,7 +13,6 @@ void FilteredTreeBuilder::addSizeFilter(uint64_t size, const std::string& operat
     filter.operation = operation;
     filters_.push_back(filter);
     
-    // Выводим информацию о добавленном фильтре
     std::cout << "Добавлен фильтр размера: " << operation << " " 
               << FileSystem::formatSize(size) << std::endl;
 }
@@ -38,7 +36,6 @@ void FilteredTreeBuilder::addDateFilter(const std::string& date, const std::stri
         filter.dateValue = std::chrono::system_clock::from_time_t(tt);
         filters_.push_back(filter);
         
-        // Выводим информацию о добавленном фильтре
         std::cout << "Добавлен фильтр даты: " << operation << " " << date << std::endl;
     } else {
         std::cerr << "Ошибка: неверный формат даты. Используйте YYYY-MM-DD или YYYY-MM-DD HH:MM:SS" << std::endl;
@@ -56,7 +53,6 @@ void FilteredTreeBuilder::addNameFilter(const std::string& pattern, bool include
             std::regex_constants::icase | std::regex_constants::optimize);
         filters_.push_back(filter);
         
-        // Выводим информацию о добавленном фильтре
         std::string filterType = include ? "включения" : "исключения";
         std::cout << "Добавлен фильтр имени (" << filterType << "): " 
                   << pattern << " -> " << regexPattern << std::endl;
@@ -70,51 +66,21 @@ std::string FilteredTreeBuilder::wildcardToRegex(const std::string& pattern) con
     std::string regexPattern;
     for (char c : pattern) {
         switch (c) {
-            case '*':
-                regexPattern += ".*";
-                break;
-            case '?':
-                regexPattern += '.';
-                break;
-            case '.':
-                regexPattern += "\\.";
-                break;
-            case '\\':
-                regexPattern += "\\\\";
-                break;
-            case '+':
-                regexPattern += "\\+";
-                break;
-            case '^':
-                regexPattern += "\\^";
-                break;
-            case '$':
-                regexPattern += "\\$";
-                break;
-            case '|':
-                regexPattern += "\\|";
-                break;
-            case '(':
-                regexPattern += "\\(";
-                break;
-            case ')':
-                regexPattern += "\\)";
-                break;
-            case '[':
-                regexPattern += "\\[";
-                break;
-            case ']':
-                regexPattern += "\\]";
-                break;
-            case '{':
-                regexPattern += "\\{";
-                break;
-            case '}':
-                regexPattern += "\\}";
-                break;
-            default:
-                regexPattern += c;
-                break;
+            case '*': regexPattern += ".*"; break;
+            case '?': regexPattern += '.'; break;
+            case '.': regexPattern += "\\."; break;
+            case '\\': regexPattern += "\\\\"; break;
+            case '+': regexPattern += "\\+"; break;
+            case '^': regexPattern += "\\^"; break;
+            case '$': regexPattern += "\\$"; break;
+            case '|': regexPattern += "\\|"; break;
+            case '(': regexPattern += "\\("; break;
+            case ')': regexPattern += "\\)"; break;
+            case '[': regexPattern += "\\["; break;
+            case ']': regexPattern += "\\]"; break;
+            case '{': regexPattern += "\\{"; break;
+            case '}': regexPattern += "\\}"; break;
+            default: regexPattern += c; break;
         }
     }
     return regexPattern;
@@ -144,12 +110,9 @@ void FilteredTreeBuilder::buildTree(bool showHidden) {
 }
 
 bool FilteredTreeBuilder::shouldIncludeEntry(const fs::path& path, const FileSystem::FileInfo& info) const {
-    // Всегда включаем директории
     if (info.isDirectory) {
         return true;
     }
-    
-    // Применяем все фильтры последовательно
     return matchesAllFilters(info);
 }
 
@@ -157,7 +120,6 @@ bool FilteredTreeBuilder::matchesAllFilters(const FileSystem::FileInfo& info) co
     if (filters_.empty()) {
         return true; 
     }
-    
     
     for (const auto& filter : filters_) {
         if (!matchesSingleFilter(info, filter)) {
@@ -170,17 +132,11 @@ bool FilteredTreeBuilder::matchesAllFilters(const FileSystem::FileInfo& info) co
 bool FilteredTreeBuilder::matchesSingleFilter(const FileSystem::FileInfo& info, const Filter& filter) const {
     switch (filter.type) {
         case Filter::Type::SIZE:
-            if (filter.operation == ">") {
-                return info.size > filter.sizeValue;
-            } else if (filter.operation == "<") {
-                return info.size < filter.sizeValue;
-            } else if (filter.operation == "==") {
-                return info.size == filter.sizeValue;
-            } else if (filter.operation == ">=") {
-                return info.size >= filter.sizeValue;
-            } else if (filter.operation == "<=") {
-                return info.size <= filter.sizeValue;
-            }
+            if (filter.operation == ">") return info.size > filter.sizeValue;
+            else if (filter.operation == "<") return info.size < filter.sizeValue;
+            else if (filter.operation == "==") return info.size == filter.sizeValue;
+            else if (filter.operation == ">=") return info.size >= filter.sizeValue;
+            else if (filter.operation == "<=") return info.size <= filter.sizeValue;
             break;
             
         case Filter::Type::DATE: {
@@ -191,13 +147,9 @@ bool FilteredTreeBuilder::matchesSingleFilter(const FileSystem::FileInfo& info, 
                 std::time_t tt = std::mktime(&tm);
                 auto fileTime = std::chrono::system_clock::from_time_t(tt);
                 
-                if (filter.operation == ">") {
-                    return fileTime > filter.dateValue;
-                } else if (filter.operation == "<") {
-                    return fileTime < filter.dateValue;
-                } else if (filter.operation == "==") {
-                    return fileTime == filter.dateValue;
-                }
+                if (filter.operation == ">") return fileTime > filter.dateValue;
+                else if (filter.operation == "<") return fileTime < filter.dateValue;
+                else if (filter.operation == "==") return fileTime == filter.dateValue;
             }
             break;
         }
@@ -207,9 +159,7 @@ bool FilteredTreeBuilder::matchesSingleFilter(const FileSystem::FileInfo& info, 
             return filter.include ? matches : !matches;
         }
             
-        case Filter::Type::NONE:
-        default:
-            break;
+        default: break;
     }
     
     return true;
@@ -230,9 +180,7 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
     if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         if (shouldIncludeEntry(path, info)) {
-            std::string connector = isLast ? constants::TREE_LAST_BRANCH 
-                                         : constants::TREE_BRANCH;
-            
+            std::string connector = isLast ? constants::TREE_LAST_BRANCH : constants::TREE_BRANCH;
             treeLines_.push_back(prefix + connector + formatTreeLine(info, connector));
             stats_.totalDirectories++;
             displayStats_.displayedDirectories++;
@@ -257,7 +205,6 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
             if (!isHidden || showHidden) {
                 entries.push_back(entry);
             } else {
-               
                 hiddenObjectsCount_++;
             }
         }
@@ -276,7 +223,6 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
     for (size_t i = 0; i < entries.size(); ++i) {
         const auto& entry = entries[i];
         bool entryIsLast = (i == entries.size() - 1);
-        
         auto info = FileSystem::getFileInfo(entry.path());
         
         if (!shouldIncludeEntry(entry.path(), info)) {
@@ -286,10 +232,12 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
         if (entry.is_directory()) {
             traverseDirectory(entry.path(), newPrefix, entryIsLast, showHidden, false);
         } else {
-            std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH 
-                                              : constants::TREE_BRANCH;
-            
-            treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
+            std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH : constants::TREE_BRANCH;
+            std::string nameColor = FileSystem::getFileColor(info);
+treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::getReset() + " " + 
+                   ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+                   ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+                   ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
             stats_.totalFiles++;
             stats_.totalSize += info.size;
             displayStats_.displayedFiles++;

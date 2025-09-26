@@ -1,76 +1,103 @@
-cmake_minimum_required(VERSION 3.14)
-project(TreeUtility)
+cmake_minimum_required(VERSION 3.15)
+project(TreeUtility VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Используем FetchContent для nlohmann_json
+# Настройка выходных директорий
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# Загрузка nlohmann/json через FetchContent
 include(FetchContent)
 FetchContent_Declare(
     nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.2
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-# Поиск библиотеки CURL
-find_package(CURL REQUIRED)
+# Поиск CURL с проверкой
+find_package(PkgConfig REQUIRED)
+find_package(CURL)  # Без REQUIRED, чтобы проверить наличие
+
+# Проверяем, найден ли CURL
 if(NOT CURL_FOUND)
-    # Попробуем найти curl через pkg-config
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(CURL libcurl REQUIRED)
-    
-    if(NOT CURL_FOUND)
-        message(FATAL_ERROR "CURL library not found. Install libcurl-dev package: sudo apt-get install libcurl4-openssl-dev")
-    endif()
+    message(WARNING "CURL not found. GitHub support will be disabled.")
+    set(ENABLE_GITHUB_SUPPORT OFF)
+else()
+    set(ENABLE_GITHUB_SUPPORT ON)
+    message(STATUS "CURL found: ${CURL_VERSION}")
 endif()
 
-message(STATUS "CURL found: ${CURL_VERSION}")
-message(STATUS "CURL include dirs: ${CURL_INCLUDE_DIRS}")
-message(STATUS "CURL libraries: ${CURL_LIBRARIES}")
+# Основной исполняемый файл
+add_executable(tree-utility)
 
-set(SOURCES
+# Базовые исходные файлы
+target_sources(tree-utility PRIVATE
     src/main.cpp
-    src/BaseTreeBuilder.cpp
     src/TreeBuilder.cpp
-    src/FileSystem.cpp
-    src/DepthViewTreeBuilder.cpp
-    src/ITreeBuilder.cpp
     src/FilteredTreeBuilder.cpp
-    src/ColorManager.cpp
+    src/DepthViewTreeBuilder.cpp
     src/JSONTreeBuilder.cpp
-    src/GitHubTreeBuilder.cpp
+    src/FileSystem.cpp
+    src/ColorManager.cpp
 )
 
-set(HEADERS
-    include/constants.h
-    include/ITreeBuilder.h
-    include/BaseTreeBuilder.h
-    include/TreeBuilder.h
-    include/FileSystem.h
-    include/DepthViewTreeBuilder.h
-    include/FilteredTreeBuilder.h
-    include/ColorManager.h
-    include/JSONTreeBuilder.h
-    include/GitHubTreeBuilder.h
-)
-
-add_executable(tree-utility ${SOURCES} ${HEADERS})
-
-target_include_directories(tree-utility 
-    PRIVATE 
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/src
-        ${CURL_INCLUDE_DIRS}
-)
-
-# Подключаем nlohmann_jso
-target_link_libraries(tree-utility 
-    PRIVATE 
-        nlohmann_json
-        ${CURL_LIBRARIES}
-)
-
-if(UNIX AND NOT APPLE)
-    target_link_libraries(tree-utility PRIVATE pthread)
+# Условное добавление GitHubTreeBuilder
+if(ENABLE_GITHUB_SUPPORT)
+    target_sources(tree-utility PRIVATE src/GitHubTreeBuilder.cpp)
+    message(STATUS "GitHub support enabled")
+else()
+    message(STATUS "GitHub support disabled - CURL not found")
 endif()
+
+# Настройки include
+target_include_directories(tree-utility PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+# Условная компоновка с CURL
+if(ENABLE_GITHUB_SUPPORT)
+    target_link_libraries(tree-utility PRIVATE
+        CURL::libcurl
+        nlohmann_json::nlohmann_json
+    )
+else()
+    target_link_libraries(tree-utility PRIVATE
+        nlohmann_json::nlohmann_json
+    )
+endif()
+
+# Определение для условной компиляции
+if(ENABLE_GITHUB_SUPPORT)
+    target_compile_definitions(tree-utility PRIVATE ENABLE_GITHUB_SUPPORT=1)
+else()
+    target_compile_definitions(tree-utility PRIVATE ENABLE_GITHUB_SUPPORT=0)
+endif()
+
+# Установка
+install(TARGETS tree-utility
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+
+# Дополнительные настройки для Unix-систем
+if(UNIX AND NOT APPLE)
+    # Настройки для Linux
+    find_package(Threads REQUIRED)
+    target_link_libraries(tree-utility PRIVATE Threads::Threads)
+endif()
+
+# Политики CMake для избежания предупреждений
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW)
+endif()
+
+# Показываем итоговую конфигурацию
+message(STATUS "Tree Utility configuration:")
+message(STATUS "  - C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  - GitHub support: ${ENABLE_GITHUB_SUPPORT}")
+message(STATUS "  - Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  - Install prefix: ${CMAKE_INSTALL_PREFIX}")

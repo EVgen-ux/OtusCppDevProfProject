@@ -1,13 +1,12 @@
 #pragma once
-
-#include "constants.h"
+#include "Constants.h"
 #include <string>
 
 class ColorManager {
 public:
     static void disableColors();
     static void enableColors();
-    static bool areColorsEnabled(); // Добавьте этот метод
+    static bool areColorsEnabled();
     
     static std::string getDirNameColor();
     static std::string getDirLabelColor();
