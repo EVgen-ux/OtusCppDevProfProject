@@ -17,7 +17,5 @@ private:
     std::string jsonOutput_;
     
     void buildJSONTree();
-    void appendDirectoryToJSON(const std::filesystem::path& path, bool showHidden, 
-                              std::stringstream& json, int depth, int maxDepth);
     std::string escapeJSONString(const std::string& str) const;
 };

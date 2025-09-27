@@ -1,6 +1,6 @@
 #include "DepthViewTreeBuilder.h"
 #include <iostream>
-#include <algorithm>  // для std::sort
+#include <algorithm> 
 
 DepthViewTreeBuilder::DepthViewTreeBuilder(const std::string& rootPath, size_t maxDepth)
     : TreeBuilder(rootPath), maxDepth_(maxDepth), currentDepth_(0) {}
@@ -12,11 +12,6 @@ void DepthViewTreeBuilder::buildTree(bool showHidden) {
     currentDepth_ = 0;
     
     treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
-    
-    if (maxDepth_ == 0) {
-        TreeBuilder::buildTree(showHidden);
-        return;
-    }
     
     traverseDirectory(rootPath_, "", true, showHidden, true);
 }
