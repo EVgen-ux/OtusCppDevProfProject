@@ -105,22 +105,23 @@ uint64_t CommandLineParser::parseSize(const std::string& sizeStr) {
     std::string valueStr = sizeStr;
     std::string unit;
     
-    // Убираем пробелы в начале и конце
+    // Убираем пробелы
     valueStr.erase(0, valueStr.find_first_not_of(" "));
     valueStr.erase(valueStr.find_last_not_of(" ") + 1);
     
-    // Ищем начало единицы измерения (первую не-цифру и не точку)
-    size_t unitStart = 0;
-    while (unitStart < valueStr.length() && 
-           (std::isdigit(valueStr[unitStart]) || valueStr[unitStart] == '.')) {
-        unitStart++;
+    // Ищем конец числа (цифры и точка)
+    size_t i = 0;
+    while (i < valueStr.length() && 
+           (std::isdigit(valueStr[i]) || valueStr[i] == '.')) {
+        i++;
     }
     
-    if (unitStart < valueStr.length()) {
-        unit = valueStr.substr(unitStart);
-        valueStr = valueStr.substr(0, unitStart);
+    // Разделяем число и единицу измерения
+    if (i < valueStr.length()) {
+        valueStr = sizeStr.substr(0, i);
+        unit = sizeStr.substr(i);
         
-        // Убираем пробелы из единицы измерения
+        // Убираем пробелы из unit
         unit.erase(0, unit.find_first_not_of(" "));
         unit.erase(unit.find_last_not_of(" ") + 1);
     }
@@ -128,19 +129,33 @@ uint64_t CommandLineParser::parseSize(const std::string& sizeStr) {
     try {
         double value = std::stod(valueStr);
         
-        // Приводим к байтам
-        if (unit.empty() || unit == "B") return static_cast<uint64_t>(value);
-        else if (unit == "KB") return static_cast<uint64_t>(value * 1000);
-        else if (unit == "MB") return static_cast<uint64_t>(value * 1000 * 1000);
-        else if (unit == "GB") return static_cast<uint64_t>(value * 1000 * 1000 * 1000);
-        else if (unit == "TB") return static_cast<uint64_t>(value * 1000 * 1000 * 1000 * 1000);
-        else if (unit == "KiB") return static_cast<uint64_t>(value * 1024);
-        else if (unit == "MiB") return static_cast<uint64_t>(value * 1024 * 1024);
-        else if (unit == "GiB") return static_cast<uint64_t>(value * 1024 * 1024 * 1024);
-        else if (unit == "TiB") return static_cast<uint64_t>(value * 1024 * 1024 * 1024 * 1024);
+        // Приводим к верхнему регистру для удобства сравнения
+        std::string upperUnit = unit;
+        std::transform(upperUnit.begin(), upperUnit.end(), upperUnit.begin(), ::toupper);
         
-        // Если единица не распознана, предполагаем байты
-        return static_cast<uint64_t>(value);
+        // Конвертируем в байты
+        if (upperUnit.empty() || upperUnit == "B") {
+            return static_cast<uint64_t>(value);
+        } else if (upperUnit == "KB") {
+            return static_cast<uint64_t>(value * 1024);
+        } else if (upperUnit == "MB") {
+            return static_cast<uint64_t>(value * 1024 * 1024);
+        } else if (upperUnit == "GB") {
+            return static_cast<uint64_t>(value * 1024 * 1024 * 1024);
+        } else if (upperUnit == "TB") {
+            return static_cast<uint64_t>(value * 1024 * 1024 * 1024 * 1024);
+        // } else if (upperUnit == "KIB") {
+        //     return static_cast<uint64_t>(value * 1000);
+        // } else if (upperUnit == "MIB") {
+        //     return static_cast<uint64_t>(value * 1000 * 1000);
+        // } else if (upperUnit == "GIB") {
+        //     return static_cast<uint64_t>(value * 1000 * 1000 * 1000);
+        // } else if (upperUnit == "TIB") {
+        //     return static_cast<uint64_t>(value * 1000 * 1000 * 1000 * 1000);
+        } else {
+            // Если единица не распознана, предполагаем байты
+            return static_cast<uint64_t>(value);
+        }
         
     } catch (const std::exception& e) {
         std::cerr << "Ошибка парсинга размера '" << sizeStr << "': " << e.what() << std::endl;
@@ -158,25 +173,21 @@ void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& b
             std::string sizeStr = options.sizeFilter;
             std::string operation = ">";
             
-            // Парсим операцию - ищем сначала длинные операторы
-            if (sizeStr.find(">=") == 0) {
-                operation = ">=";
-                sizeStr = sizeStr.substr(2);
-            } else if (sizeStr.find("<=") == 0) {
-                operation = "<=";
-                sizeStr = sizeStr.substr(2);
-            } else if (sizeStr.find("==") == 0) {
-                operation = "==";
-                sizeStr = sizeStr.substr(2);
-            } else if (sizeStr.find("!=") == 0) {
-                operation = "!=";
-                sizeStr = sizeStr.substr(2);
-            } else if (sizeStr.find(">") == 0) {
-                operation = ">";
-                sizeStr = sizeStr.substr(1);
-            } else if (sizeStr.find("<") == 0) {
-                operation = "<";
-                sizeStr = sizeStr.substr(1);
+            // Парсим операцию
+            if (sizeStr.size() >= 2) {
+                std::string op2 = sizeStr.substr(0, 2);
+                if (op2 == ">=" || op2 == "<=" || op2 == "==" || op2 == "!=") {
+                    operation = op2;
+                    sizeStr = sizeStr.substr(2);
+                }
+            }
+            
+            if (sizeStr.size() >= 1 && (operation == ">" || operation == "<")) {
+                std::string op1 = sizeStr.substr(0, 1);
+                if (op1 == ">" || op1 == "<") {
+                    operation = op1;
+                    sizeStr = sizeStr.substr(1);
+                }
             }
             
             // Убираем пробелы
@@ -188,9 +199,36 @@ void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& b
                 filteredBuilder->addSizeFilter(size, operation);
                 std::cout << "Применен фильтр размера: " << operation << " " 
                           << FileSystem::formatSize(size) << std::endl;
-            } else {
-                std::cerr << "Ошибка: не удалось распознать размер '" << sizeStr << "'" << std::endl;
             }
+        }
+        
+        // Фильтр по дате
+        if (!options.dateFilter.empty()) {
+            std::string dateStr = options.dateFilter;
+            std::string operation = ">";
+            
+            // Парсим операцию (аналогично размеру)
+            if (dateStr.size() >= 2) {
+                std::string op2 = dateStr.substr(0, 2);
+                if (op2 == ">=" || op2 == "<=" || op2 == "==") {
+                    operation = op2;
+                    dateStr = dateStr.substr(2);
+                }
+            }
+            
+            if (dateStr.size() >= 1 && (operation == ">" || operation == "<")) {
+                std::string op1 = dateStr.substr(0, 1);
+                if (op1 == ">" || op1 == "<") {
+                    operation = op1;
+                    dateStr = dateStr.substr(1);
+                }
+            }
+            
+            // Убираем пробелы
+            dateStr.erase(0, dateStr.find_first_not_of(" "));
+            dateStr.erase(dateStr.find_last_not_of(" ") + 1);
+            
+            filteredBuilder->addDateFilter(dateStr, operation);
         }
         
         // Фильтр по имени (включение)
