@@ -41,4 +41,5 @@ private:
     bool matchesAllFilters(const FileSystem::FileInfo& info) const;
     bool matchesSingleFilter(const FileSystem::FileInfo& info, const Filter& filter) const;
     std::string wildcardToRegex(const std::string& pattern) const;
+    std::string formatTreeLine(const FileSystem::FileInfo& info, const std::string& connector) const override;
 };

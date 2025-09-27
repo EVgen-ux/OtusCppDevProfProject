@@ -12,9 +12,6 @@ void FilteredTreeBuilder::addSizeFilter(uint64_t size, const std::string& operat
     filter.sizeValue = size;
     filter.operation = operation;
     filters_.push_back(filter);
-    
-    std::cout << "Добавлен фильтр размера: " << operation << " " 
-              << FileSystem::formatSize(size) << std::endl;
 }
 
 void FilteredTreeBuilder::addDateFilter(const std::string& date, const std::string& operation) {
@@ -100,19 +97,21 @@ void FilteredTreeBuilder::buildTree(bool showHidden) {
     displayStats_ = DisplayStatistics{};
     currentDepth_ = 0;
     
-    treeLines_.push_back("[DIR]");
+    treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
     
-    if (maxDepth_ > 0) {
-        traverseDirectory(rootPath_, "", true, showHidden, true);
-    } else {
-        TreeBuilder::buildTree(showHidden);
-    }
+    traverseDirectory(rootPath_, "", true, showHidden, true);
 }
 
 bool FilteredTreeBuilder::shouldIncludeEntry(const fs::path& path, const FileSystem::FileInfo& info) const {
+    // Если фильтров нет, включаем все
+    if (filters_.empty()) {
+        return true;
+    }
+
     if (info.isDirectory) {
         return true;
     }
+
     return matchesAllFilters(info);
 }
 
@@ -177,6 +176,7 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
         return;
     }
     
+    // Всегда показываем корневую директорию
     if (!isRoot) {
         auto info = FileSystem::getFileInfo(path);
         if (shouldIncludeEntry(path, info)) {
@@ -213,31 +213,32 @@ void FilteredTreeBuilder::traverseDirectory(const fs::path& path,
         return;
     }
     
-    std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+    // Фильтрация записей перед сортировкой и отображением
+    std::vector<fs::directory_entry> filteredEntries;
+    for (const auto& entry : entries) {
+        auto info = FileSystem::getFileInfo(entry.path());
+        if (shouldIncludeEntry(entry.path(), info)) {
+            filteredEntries.push_back(entry);
+        }
+    }
+    
+    std::sort(filteredEntries.begin(), filteredEntries.end(), [](const auto& a, const auto& b) {
         if (a.is_directory() != b.is_directory()) {
             return a.is_directory() > b.is_directory();
         }
         return a.path().filename().string() < b.path().filename().string();
     });
     
-    for (size_t i = 0; i < entries.size(); ++i) {
-        const auto& entry = entries[i];
-        bool entryIsLast = (i == entries.size() - 1);
+    for (size_t i = 0; i < filteredEntries.size(); ++i) {
+        const auto& entry = filteredEntries[i];
+        bool entryIsLast = (i == filteredEntries.size() - 1);
         auto info = FileSystem::getFileInfo(entry.path());
-        
-        if (!shouldIncludeEntry(entry.path(), info)) {
-            continue;
-        }
         
         if (entry.is_directory()) {
             traverseDirectory(entry.path(), newPrefix, entryIsLast, showHidden, false);
         } else {
             std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH : constants::TREE_BRANCH;
-            std::string nameColor = FileSystem::getFileColor(info);
-treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::getReset() + " " + 
-                   ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
-                   ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
-                   ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
+            treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
             stats_.totalFiles++;
             stats_.totalSize += info.size;
             displayStats_.displayedFiles++;
@@ -246,4 +247,20 @@ treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::
     }
     
     currentDepth_--;
+}
+
+std::string FilteredTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info, 
+                                              const std::string& connector) const {
+    std::string nameColor = FileSystem::getFileColor(info);  
+    if (info.isDirectory) {
+        return nameColor + info.name + ColorManager::getReset() + " " + 
+               ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
+    } else {
+        return nameColor + info.name + ColorManager::getReset() + " (" + 
+               ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
+    }
 }

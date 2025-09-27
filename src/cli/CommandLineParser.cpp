@@ -1,48 +1,61 @@
 #include "CommandLineParser.h"
 #include "FilteredTreeBuilder.h"
-#include "GitHubTreeBuilder.h"
-#include "ColorManager.h"
-#include "Constants.h"
 #include <iostream>
 #include <algorithm>
 
 bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder) {
+    options.useFilteredBuilder = false;
+    
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         
         if (arg == "-h" || arg == "--help") {
+            options.showHelp = true;
             return false;
         } else if (arg == "-v" || arg == "--version") {
+            options.showVersion = true;
             return false;
+        } else if (arg == "-a" || arg == "--all") {
+            options.showHidden = true;
         } else if (arg == "--no-color") {
-            options.useColors = false;
-            ColorManager::disableColors();
+            // Обработка отключения цветов
         } else if (arg == "--json") {
             options.useJSON = true;
-            options.useColors = false;
-            ColorManager::disableColors();
         } else if (arg == "-o" || arg == "--output") {
             if (i + 1 < argc) {
                 options.outputFile = argv[++i];
-                options.useColors = false;
-                ColorManager::disableColors();
             } else {
-                std::cerr << "Ошибка: опция -o требует имени файла" << std::endl;
+                std::cerr << "Ошибка: отсутствует имя файла для опции -o" << std::endl;
                 return false;
             }
-        } else if (arg == "-a" || arg == "--all") {
-            options.showHidden = true;
         } else if (arg == "-L" || arg == "--level") {
             if (i + 1 < argc) {
                 try {
                     options.maxDepth = std::stoul(argv[++i]);
-                } catch (const std::exception& e) {
-                    std::cerr << "Ошибка: неверное значение для глубины: " << argv[i] << std::endl;
+                } catch (...) {
+                    std::cerr << "Ошибка: неверный формат глубины" << std::endl;
                     return false;
                 }
-            } else {
-                std::cerr << "Ошибка: опция -L требует значения" << std::endl;
-                return false;
+            }
+        } else if (arg == "-s" || arg == "--size") {
+            if (i + 1 < argc) {
+                options.sizeFilter = argv[++i];
+                options.useFilteredBuilder = true;
+            }
+        } else if (arg == "-d" || arg == "--date") {
+            if (i + 1 < argc) {
+                options.dateFilter = argv[++i];
+                options.useFilteredBuilder = true;
+            }
+        } else if (arg == "-n" || arg == "--name") {
+            if (i + 1 < argc) {
+                options.nameFilter = argv[++i];
+                options.useFilteredBuilder = true;
+            }
+        } else if (arg == "-x" || arg == "--exclude") {
+            if (i + 1 < argc) {
+                options.excludeFilter = argv[++i];
+                options.useFilteredBuilder = true;
             }
         } else if (arg == "-t" || arg == "--threads") {
             if (i + 1 < argc) {
@@ -52,75 +65,34 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
                 } else {
                     try {
                         options.threadCount = std::stoul(threadArg);
-                        if (options.threadCount == 0) {
-                            std::cerr << "Ошибка: количество потоков должно быть > 0 или 'auto'" << std::endl;
-                            return false;
-                        }
-                    } catch (const std::exception& e) {
-                        std::cerr << "Ошибка: неверное значение для потоков: " << threadArg << std::endl;
+                    } catch (...) {
+                        std::cerr << "Ошибка: неверный формат количества потоков" << std::endl;
                         return false;
                     }
                 }
-            } else {
-                std::cerr << "Ошибка: опция -t требует значения" << std::endl;
-                return false;
             }
-        } else if (arg == "-s" || arg == "--size") {
-            options.useFilteredBuilder = true;
+        } else if (arg == "-g" || arg == "--github") {
             if (i + 1 < argc) {
-                if (!handleSizeFilter(argv[++i], options, builder, options.path)) {
-                    return false;
-                }
-            } else {
-                std::cerr << "Ошибка: опция -s требует значения" << std::endl;
-                return false;
-            }
-        } else if (arg == "-d" || arg == "--date") {
-            options.useFilteredBuilder = true;
-            if (i + 1 < argc) {
-                if (!handleDateFilter(argv[++i], options, builder, options.path)) {
-                    return false;
-                }
-            } else {
-                std::cerr << "Ошибка: опция -d требует значения" << std::endl;
-                return false;
-            }
-        } else if (arg == "-n" || arg == "--name") {
-            options.useFilteredBuilder = true;
-            if (i + 1 < argc) {
-                if (!handleNameFilter(argv[++i], options, builder, options.path, true)) {
-                    return false;
-                }
-            } else {
-                std::cerr << "Ошибка: опция -n требует шаблона" << std::endl;
-                return false;
-            }
-        } else if (arg == "-x" || arg == "--exclude") {
-            options.useFilteredBuilder = true;
-            if (i + 1 < argc) {
-                if (!handleNameFilter(argv[++i], options, builder, options.path, false)) {
-                    return false;
-                }
-            } else {
-                std::cerr << "Ошибка: опция -x требует шаблона" << std::endl;
-                return false;
-            }
-        } else if (arg == "--github" || arg == "-g") {
-            if (i + 1 < argc) {
-                std::string githubUrl = argv[++i];
-                builder = std::make_unique<GitHubTreeBuilder>(githubUrl, options.githubDepth);
+                options.githubUrl = argv[++i];
                 options.isGitHub = true;
-                options.useFilteredBuilder = false;
-            } else {
-                std::cerr << "Ошибка: опция --github требует URL" << std::endl;
-                return false;
             }
         } else if (arg == "--github-depth") {
             if (i + 1 < argc) {
-                options.githubDepth = std::stoul(argv[++i]);
+                try {
+                    options.githubDepth = std::stoul(argv[++i]);
+                } catch (...) {
+                    std::cerr << "Ошибка: неверный формат глубины GitHub" << std::endl;
+                    return false;
+                }
             }
-        } else if (arg[0] != '-') {
-            options.path = arg;
+        } else {
+            // Если это не опция, то это путь
+            if (arg[0] != '-') {
+                options.path = arg;
+            } else {
+                std::cerr << "Ошибка: неизвестная опция " << arg << std::endl;
+                return false;
+            }
         }
     }
     
@@ -128,123 +100,107 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
 }
 
 uint64_t CommandLineParser::parseSize(const std::string& sizeStr) {
-    size_t multiplier = 1;
-    std::string numStr = sizeStr;
+    if (sizeStr.empty()) return 0;
     
-    numStr.erase(std::remove_if(numStr.begin(), numStr.end(), ::isspace), numStr.end());
+    std::string valueStr = sizeStr;
+    std::string unit;
     
-    std::string lowerStr = sizeStr;
-    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
+    // Убираем пробелы в начале и конце
+    valueStr.erase(0, valueStr.find_first_not_of(" "));
+    valueStr.erase(valueStr.find_last_not_of(" ") + 1);
     
-    if (lowerStr.find("kb") != std::string::npos) {
-        multiplier = constants::KB;
-        numStr = sizeStr.substr(0, sizeStr.size() - 2);
-    } else if (lowerStr.find("mb") != std::string::npos) {
-        multiplier = constants::MB;
-        numStr = sizeStr.substr(0, sizeStr.size() - 2);
-    } else if (lowerStr.find("gb") != std::string::npos) {
-        multiplier = constants::GB;
-        numStr = sizeStr.substr(0, sizeStr.size() - 2);
-    } else if (lowerStr.find("tb") != std::string::npos) {
-        multiplier = constants::TB;
-        numStr = sizeStr.substr(0, sizeStr.size() - 2);
-    } else if (lowerStr.find('b') != std::string::npos && lowerStr.find("kb") == std::string::npos &&
-               lowerStr.find("mb") == std::string::npos && lowerStr.find("gb") == std::string::npos &&
-               lowerStr.find("tb") == std::string::npos) {
-        multiplier = 1;
-        numStr = sizeStr.substr(0, sizeStr.size() - 1);
+    // Ищем начало единицы измерения (первую не-цифру и не точку)
+    size_t unitStart = 0;
+    while (unitStart < valueStr.length() && 
+           (std::isdigit(valueStr[unitStart]) || valueStr[unitStart] == '.')) {
+        unitStart++;
     }
     
-    numStr.erase(std::remove_if(numStr.begin(), numStr.end(), ::isspace), numStr.end());
+    if (unitStart < valueStr.length()) {
+        unit = valueStr.substr(unitStart);
+        valueStr = valueStr.substr(0, unitStart);
+        
+        // Убираем пробелы из единицы измерения
+        unit.erase(0, unit.find_first_not_of(" "));
+        unit.erase(unit.find_last_not_of(" ") + 1);
+    }
     
     try {
-        double size = std::stod(numStr);
-        return static_cast<uint64_t>(size * multiplier);
-    } catch (const std::exception&) {
-        throw std::runtime_error("Неверный формат размера: " + sizeStr);
+        double value = std::stod(valueStr);
+        
+        // Приводим к байтам
+        if (unit.empty() || unit == "B") return static_cast<uint64_t>(value);
+        else if (unit == "KB") return static_cast<uint64_t>(value * 1000);
+        else if (unit == "MB") return static_cast<uint64_t>(value * 1000 * 1000);
+        else if (unit == "GB") return static_cast<uint64_t>(value * 1000 * 1000 * 1000);
+        else if (unit == "TB") return static_cast<uint64_t>(value * 1000 * 1000 * 1000 * 1000);
+        else if (unit == "KiB") return static_cast<uint64_t>(value * 1024);
+        else if (unit == "MiB") return static_cast<uint64_t>(value * 1024 * 1024);
+        else if (unit == "GiB") return static_cast<uint64_t>(value * 1024 * 1024 * 1024);
+        else if (unit == "TiB") return static_cast<uint64_t>(value * 1024 * 1024 * 1024 * 1024);
+        
+        // Если единица не распознана, предполагаем байты
+        return static_cast<uint64_t>(value);
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Ошибка парсинга размера '" << sizeStr << "': " << e.what() << std::endl;
     }
+    
+    return 0;
 }
 
-bool CommandLineParser::handleSizeFilter(const std::string& sizeArg, CommandLineOptions& options, 
-                                       std::unique_ptr<TreeBuilder>& builder, const std::string& path) {
-    std::string op;
-    std::string sizeStr;
+void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& builder) {
+    if (!options.useFilteredBuilder) return;
     
-    size_t spacePos = sizeArg.find(' ');
-    if (spacePos != std::string::npos) {
-        op = sizeArg.substr(0, spacePos);
-        sizeStr = sizeArg.substr(spacePos + 1);
-    } else {
-        for (size_t j = 0; j < sizeArg.size(); ++j) {
-            if (isdigit(sizeArg[j])) {
-                op = sizeArg.substr(0, j);
-                sizeStr = sizeArg.substr(j);
-                break;
+    if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(&builder)) {
+        // Фильтр по размеру
+        if (!options.sizeFilter.empty()) {
+            std::string sizeStr = options.sizeFilter;
+            std::string operation = ">";
+            
+            // Парсим операцию - ищем сначала длинные операторы
+            if (sizeStr.find(">=") == 0) {
+                operation = ">=";
+                sizeStr = sizeStr.substr(2);
+            } else if (sizeStr.find("<=") == 0) {
+                operation = "<=";
+                sizeStr = sizeStr.substr(2);
+            } else if (sizeStr.find("==") == 0) {
+                operation = "==";
+                sizeStr = sizeStr.substr(2);
+            } else if (sizeStr.find("!=") == 0) {
+                operation = "!=";
+                sizeStr = sizeStr.substr(2);
+            } else if (sizeStr.find(">") == 0) {
+                operation = ">";
+                sizeStr = sizeStr.substr(1);
+            } else if (sizeStr.find("<") == 0) {
+                operation = "<";
+                sizeStr = sizeStr.substr(1);
+            }
+            
+            // Убираем пробелы
+            sizeStr.erase(0, sizeStr.find_first_not_of(" "));
+            sizeStr.erase(sizeStr.find_last_not_of(" ") + 1);
+            
+            uint64_t size = parseSize(sizeStr);
+            if (size > 0) {
+                filteredBuilder->addSizeFilter(size, operation);
+                std::cout << "Применен фильтр размера: " << operation << " " 
+                          << FileSystem::formatSize(size) << std::endl;
+            } else {
+                std::cerr << "Ошибка: не удалось распознать размер '" << sizeStr << "'" << std::endl;
             }
         }
-        if (op.empty()) {
-            std::cerr << "Ошибка: неверный формат размера: " << sizeArg << std::endl;
-            return false;
-        }
-    }
-    
-    try {
-        uint64_t size = parseSize(sizeStr);
-        if (!builder) {
-            builder = std::make_unique<FilteredTreeBuilder>(path);
-        } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-            builder = std::make_unique<FilteredTreeBuilder>(path);
+        
+        // Фильтр по имени (включение)
+        if (!options.nameFilter.empty()) {
+            filteredBuilder->addNameFilter(options.nameFilter, true);
         }
         
-        if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-            filteredBuilder->addSizeFilter(size, op);
+        // Фильтр по имени (исключение)
+        if (!options.excludeFilter.empty()) {
+            filteredBuilder->addNameFilter(options.excludeFilter, false);
         }
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка: " << e.what() << std::endl;
-        return false;
     }
-    
-    return true;
-}
-
-bool CommandLineParser::handleDateFilter(const std::string& dateArg, CommandLineOptions& options,
-                                       std::unique_ptr<TreeBuilder>& builder, const std::string& path) {
-    std::string op;
-    std::string dateStr;
-    
-    size_t spacePos = dateArg.find(' ');
-    if (spacePos != std::string::npos) {
-        op = dateArg.substr(0, spacePos);
-        dateStr = dateArg.substr(spacePos + 1);
-    } else {
-        std::cerr << "Ошибка: неверный формат даты: " << dateArg << std::endl;
-        return false;
-    }
-    
-    if (!builder) {
-        builder = std::make_unique<FilteredTreeBuilder>(path);
-    } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-        builder = std::make_unique<FilteredTreeBuilder>(path);
-    }
-    
-    if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-        filteredBuilder->addDateFilter(dateStr, op);
-    }
-    
-    return true;
-}
-
-bool CommandLineParser::handleNameFilter(const std::string& pattern, CommandLineOptions& options,
-                                       std::unique_ptr<TreeBuilder>& builder, const std::string& path, bool include) {
-    if (!builder) {
-        builder = std::make_unique<FilteredTreeBuilder>(path);
-    } else if (!dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-        builder = std::make_unique<FilteredTreeBuilder>(path);
-    }
-    
-    if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-        filteredBuilder->addNameFilter(pattern, include);
-    }
-    
-    return true;
 }

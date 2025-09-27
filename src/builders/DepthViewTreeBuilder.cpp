@@ -91,11 +91,7 @@ void DepthViewTreeBuilder::traverseDirectory(const fs::path& path,
             auto info = FileSystem::getFileInfo(entry.path());
             std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH : constants::TREE_BRANCH;
             
-            std::string nameColor = FileSystem::getFileColor(info);
-treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::getReset() + " " + 
-                   ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
-                   ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
-                   ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
+            treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
             stats_.totalFiles++;
             stats_.totalSize += info.size;
             displayStats_.displayedFiles++;
@@ -104,6 +100,22 @@ treeLines_.push_back(prefix + connector + nameColor + info.name + ColorManager::
     }
     
     currentDepth_--;
+}
+
+std::string DepthViewTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info, 
+                                               const std::string& connector) const {
+    std::string nameColor = FileSystem::getFileColor(info);  
+    if (info.isDirectory) {
+        return nameColor + info.name + ColorManager::getReset() + " " + 
+               ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
+    } else {
+        return nameColor + info.name + ColorManager::getReset() + " (" + 
+               ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
+    }
 }
 
 void DepthViewTreeBuilder::setMaxDepth(size_t maxDepth) {

@@ -10,7 +10,6 @@ int main(int argc, char* argv[]) {
     
     // Парсинг аргументов командной строки
     if (!CommandLineParser::parse(argc, argv, options, builder)) {
-        // Если вернулось false, значит была показана справка или версия
         if (argc > 1) {
             std::string firstArg = argv[1];
             if (firstArg == "-h" || firstArg == "--help") {
@@ -23,15 +22,13 @@ int main(int argc, char* argv[]) {
     }
     
     builder = BuilderFactory::create(options);
+    
+    CommandLineParser::applyFilters(options, *builder);
 
     try {
-        // Добавляем информацию о потоках
         OutputManager::printThreadInfo(options.threadCount);
-
-        // Строим дерево
         builder->buildTree(options.showHidden);
         
-        // Вывод в файл или на консоль
         if (!options.outputFile.empty()) {
             if (!OutputManager::outputToFile(options.outputFile, *builder, options)) {
                 return 1;
@@ -39,8 +36,6 @@ int main(int argc, char* argv[]) {
         } else {
             OutputManager::outputToConsole(*builder, options);
         }
-
-
         
     } catch (const std::exception& e) {
         std::cerr << "Ошибка: " << e.what() << std::endl;

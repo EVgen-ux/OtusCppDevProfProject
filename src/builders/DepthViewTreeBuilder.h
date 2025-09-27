@@ -13,6 +13,9 @@ private:
     size_t maxDepth_;
     size_t currentDepth_;
     
+    std::string formatTreeLine(const FileSystem::FileInfo& info, 
+                              const std::string& connector) const override;
+
     void traverseDirectory(const std::filesystem::path& path, 
                           const std::string& prefix, 
                           bool isLast,
