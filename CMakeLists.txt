@@ -42,6 +42,7 @@ target_sources(tree-utility PRIVATE
     src/JSONTreeBuilder.cpp
     src/FileSystem.cpp
     src/ColorManager.cpp
+    src/MultiThreadedTreeBuilder.cpp
 )
 
 # Условное добавление GitHubTreeBuilder

@@ -9,6 +9,7 @@
 #include "JSONTreeBuilder.h"
 #include "FileSystem.h"
 #include "ColorManager.h"
+#include "MultiThreadedTreeBuilder.h"
 
 void printHelp() {
     std::cout << "Tree Utility v" << constants::VERSION << std::endl;
@@ -28,6 +29,7 @@ void printHelp() {
     std::cout << "  -g, --github URL    Построить дерево из GitHub репозитория" << std::endl;
     std::cout << "  --github-depth N    Глубина для GitHub (по умолчанию: 3)" << std::endl;
     std::cout << "  -o, --output FILE   Сохранить вывод в файл" << std::endl;
+    std::cout << "  -t, --threads N     Количество потоков (auto, 1, 2, 4, ...)" << std::endl;
     std::cout << std::endl;
     std::cout << "Примеры:" << std::endl;
     std::cout << "  tree-utility . -L 2           # Показать дерево глубиной 2 уровня" << std::endl;
@@ -38,6 +40,8 @@ void printHelp() {
     std::cout << "  tree-utility . -x \"test.*\"     # Исключить test файлы" << std::endl;
     std::cout << "  tree-utility . --json         # Вывод в формате JSON" << std::endl;
     std::cout << "  tree-utility . --json -o output.json # Сохранить в JSON файл" << std::endl;
+    std::cout << "  tree-utility . -t auto        # Автоматическое определение потоков" << std::endl;
+    std::cout << "  tree-utility . -t 4           # Использовать 4 потока" << std::endl;
 }
 
 void printVersion() {
@@ -52,7 +56,6 @@ uint64_t parseSize(const std::string& sizeStr) {
     // Удаляем возможные пробелы
     numStr.erase(std::remove_if(numStr.begin(), numStr.end(), ::isspace), numStr.end());
     
-    // Проверяем суффиксы (case-insensitive)
     std::string lowerStr = sizeStr;
     std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
     
@@ -96,6 +99,7 @@ int main(int argc, char* argv[]) {
     bool isGitHub = false;
     size_t githubDepth = 3;
     std::string outputFile;
+    size_t threadCount = 1; 
 
     std::unique_ptr<TreeBuilder> builder;
     
@@ -139,6 +143,29 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Ошибка: опция -L требует значения" << std::endl;
                 return 1;
             }
+        } 
+        else if (arg == "-t" || arg == "--threads") {
+            if (i + 1 < argc) {
+                std::string threadArg = argv[++i];
+                if (threadArg == "auto") {
+                    threadCount = 0; // 0 означает auto
+                } else {
+                    try {
+                        threadCount = std::stoul(threadArg);
+                        if (threadCount == 0) {
+                            std::cerr << "Ошибка: количество потоков должно быть > 0 или 'auto'" << std::endl;
+                            return 1;
+                        }
+                    } catch (const std::exception& e) {
+                        std::cerr << "Ошибка: неверное значение для потоков: " << threadArg << std::endl;
+                        return 1;
+                    }
+                }
+            } else {
+                std::cerr << "Ошибка: опция -t требует значения" << std::endl;
+                return 1;
+            }
+
         } else if (arg == "-s" || arg == "--size") {
             useFilteredBuilder = true;
             if (i + 1 < argc) {
@@ -268,31 +295,40 @@ int main(int argc, char* argv[]) {
             path = arg;
         }
     }
+ 
     
-    // Создаем builder
-    if (!builder) {
-        if (useJSON) {
-            builder = std::make_unique<JSONTreeBuilder>(path);
-        } else if (maxDepth > 0) {
-            builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
-        } else if (useFilteredBuilder) {
-            builder = std::make_unique<FilteredTreeBuilder>(path);
+ // Создаем builder
+if (!builder) {
+    if (useJSON) {
+        builder = std::make_unique<JSONTreeBuilder>(path);
+    } else if (maxDepth > 0) {
+        builder = std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
+    } else if (useFilteredBuilder) {
+        builder = std::make_unique<FilteredTreeBuilder>(path);
+    } else {
+        // Проверяем многопоточность (кроме GitHub)
+        if ((threadCount > 1 || threadCount == 0) && 
+            !(path.find("github.com") != std::string::npos || 
+              path.find("https://github.com") != std::string::npos)) {
+            builder = std::make_unique<MultiThreadedTreeBuilder>(path, threadCount);
         } else {
             builder = std::make_unique<TreeBuilder>(path);
         }
-    } else if (useJSON && !dynamic_cast<JSONTreeBuilder*>(builder.get())) {
-        // Если запрошен JSON, но builder не JSONTreeBuilder, пересоздаем
-        builder = std::make_unique<JSONTreeBuilder>(path);
     }
-    
-    // Применяем максимальную глубину если нужно
-    if (maxDepth > 0 && !useJSON) {
-        if (auto depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(builder.get())) {
-            depthBuilder->setMaxDepth(maxDepth);
-        } else if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
-            filteredBuilder->setMaxDepth(maxDepth);
-        }
+} else if (useJSON && !dynamic_cast<JSONTreeBuilder*>(builder.get())) {
+    // Если запрошен JSON, но builder не JSONTreeBuilder, пересоздаем
+    builder = std::make_unique<JSONTreeBuilder>(path);
+}
+
+// Применяем максимальную глубину если нужно
+if (maxDepth > 0 && !useJSON) {
+    if (auto depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(builder.get())) {
+        depthBuilder->setMaxDepth(maxDepth);
+    } else if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(builder.get())) {
+        filteredBuilder->setMaxDepth(maxDepth);
     }
+}   
+
 
     try {
         // Строим дерево
@@ -326,13 +362,11 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
             } else {
-                // Для обычного вывода сохраняем дерево
                 const auto& treeLines = builder->getTreeLines();
                 for (const auto& line : treeLines) {
                     outFile << line << std::endl;
                 }
                 
-                // Сохраняем статистику
                 outFile << std::endl;
                 outFile << "Статистика:" << std::endl;
                 
