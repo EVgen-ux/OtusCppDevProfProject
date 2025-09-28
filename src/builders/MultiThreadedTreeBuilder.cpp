@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <future>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -12,6 +13,7 @@ MultiThreadedTreeBuilder::MultiThreadedTreeBuilder(const std::string& rootPath, 
         unsigned int hwThreads = std::thread::hardware_concurrency();
         threadCount_ = (hwThreads == 0) ? 1 : static_cast<size_t>(hwThreads);
     }
+    std::cout << "Используется потоков: " << threadCount_ << std::endl;
 }
 
 MultiThreadedTreeBuilder::~MultiThreadedTreeBuilder() {
@@ -68,7 +70,6 @@ void MultiThreadedTreeBuilder::traverseDirectoryHybrid(const fs::path& path,
         return;
     }
     
-    // Сортировка: сначала директории, потом файлы
     std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
         if (a.is_directory() != b.is_directory()) {
             return a.is_directory() > b.is_directory();
@@ -82,13 +83,29 @@ void MultiThreadedTreeBuilder::traverseDirectoryHybrid(const fs::path& path,
     for (const auto& entry : entries) {
         if (!entry.is_directory()) {
             fileEntries.push_back(entry);
-            fileFutures.push_back(std::async(std::launch::async, [entry]() {
+        }
+    }
+    
+
+    if (fileEntries.size() > 10) {
+        for (const auto& entry : fileEntries) {
+            fileFutures.push_back(std::async(std::launch::async, [entry, this]() {
+                if (stopProcessing_) return FileSystem::FileInfo();
+                return FileSystem::getFileInfo(entry.path());
+            }));
+        }
+    } else {
+        for (const auto& entry : fileEntries) {
+            if (stopProcessing_) break;
+            fileFutures.push_back(std::async(std::launch::deferred, [entry]() {
                 return FileSystem::getFileInfo(entry.path());
             }));
         }
     }
     
     for (size_t i = 0; i < entries.size(); ++i) {
+        if (stopProcessing_) break;
+        
         const auto& entry = entries[i];
         bool entryIsLast = (i == entries.size() - 1);
         
@@ -97,20 +114,36 @@ void MultiThreadedTreeBuilder::traverseDirectoryHybrid(const fs::path& path,
         }
     }
     
-     for (size_t i = 0; i < fileEntries.size(); ++i) {
+    for (size_t i = 0; i < fileFutures.size(); ++i) {
+        if (stopProcessing_) break;
+        
         auto info = fileFutures[i].get();
+        if (info.name.empty()) continue;        
         bool entryIsLast = (i == fileEntries.size() - 1);
         std::string connector = entryIsLast ? constants::TREE_LAST_BRANCH : constants::TREE_BRANCH;
         
-        treeLines_.push_back(newPrefix + connector + 
-            FileSystem::getFileColor(info) + info.name + ColorManager::getReset() + " (" + 
-            ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
-            ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
-            ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset());
+        // ИСПРАВЛЕНИЕ: используем formatTreeLine вместо прямого форматирования
+        treeLines_.push_back(newPrefix + connector + formatTreeLine(info, connector));
         
         stats_.totalFiles++;
         stats_.totalSize += info.size;
         displayStats_.displayedFiles++;
         displayStats_.displayedSize += info.size;
+    }
+}
+
+std::string MultiThreadedTreeBuilder::formatTreeLine(const FileSystem::FileInfo& info, 
+                                                   const std::string& connector) const {
+    std::string nameColor = FileSystem::getFileColor(info);  
+    if (info.isDirectory) {
+        return nameColor + info.name + ColorManager::getReset() + " " + 
+               ColorManager::getDirLabelColor() + "[DIR]" + ColorManager::getReset() + " | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
+    } else {
+        return nameColor + info.name + ColorManager::getReset() + " (" + 
+               ColorManager::getSizeColor() + info.sizeFormatted + ColorManager::getReset() + ") | " + 
+               ColorManager::getDateColor() + info.lastModified + ColorManager::getReset() + " | " + 
+               ColorManager::getPermissionsColor() + info.permissions + ColorManager::getReset();
     }
 }

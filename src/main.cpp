@@ -26,7 +26,6 @@ int main(int argc, char* argv[]) {
     CommandLineParser::applyFilters(options, *builder);
 
     try {
-        OutputManager::printThreadInfo(options.threadCount);
         builder->buildTree(options.showHidden);
         
         if (!options.outputFile.empty()) {

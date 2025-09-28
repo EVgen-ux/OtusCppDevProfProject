@@ -16,12 +16,12 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
         return std::make_unique<JSONTreeBuilder>(path);
     }
     
-    // ИСПРАВЛЕНИЕ: проверяем GitHub URL перед другими условиями
+    // GitHub имеет приоритет
     if (path.find("github.com") != std::string::npos) {
         return std::make_unique<GitHubTreeBuilder>(path, maxDepth);
     }
     
-    // ПРИОРИТЕТ 1: Если есть фильтры - создаем FilteredTreeBuilder
+    // Фильтры имеют приоритет
     if (useFilters) {
         auto builder = std::make_unique<FilteredTreeBuilder>(path);
         if (maxDepth > 0) {
@@ -30,13 +30,13 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
         return builder;
     }
     
-    // ПРИОРИТЕТ 2: Если есть ограничение глубины - создаем DepthViewTreeBuilder
+    // Ограничение глубины
     if (maxDepth > 0) {
         return std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
     }
     
-    // ПРИОРИТЕТ 3: Многопоточность
-    if ((threadCount > 1 || threadCount == 0)) {
+    // Многопоточность создается только когда явно указаны потоки
+    if (threadCount > 1 || threadCount == 0) {
         return std::make_unique<MultiThreadedTreeBuilder>(path, threadCount);
     }
     
@@ -44,7 +44,7 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
 }
 
 std::unique_ptr<TreeBuilder> BuilderFactory::create(const CommandLineOptions& options) {
-    // ИСПРАВЛЕНИЕ: для GitHub используем githubUrl вместо path
+
     std::string targetPath = options.isGitHub ? options.githubUrl : options.path;
     
     return createBuilder(targetPath, 

@@ -18,4 +18,7 @@ private:
                                 bool isLast,
                                 bool showHidden,
                                 bool isRoot = false);
+    
+    std::string formatTreeLine(const FileSystem::FileInfo& info, 
+                              const std::string& connector) const override;
 };

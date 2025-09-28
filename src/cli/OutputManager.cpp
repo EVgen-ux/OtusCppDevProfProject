@@ -84,14 +84,6 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
     }
 }
 
-void OutputManager::printThreadInfo(size_t threadCount) {
-    if (threadCount > 1 || threadCount == 0) {
-        std::cout << "Использовано потоков: " 
-                  << (threadCount == 0 ? "auto" : std::to_string(threadCount)) 
-                  << std::endl;
-    }
-}
-
 bool OutputManager::outputToFile(const std::string& filename, const TreeBuilder& builder, 
                                 const CommandLineOptions& options) {
     std::ofstream outFile(filename);
