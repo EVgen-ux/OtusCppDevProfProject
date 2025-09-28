@@ -16,8 +16,13 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
         return std::make_unique<JSONTreeBuilder>(path);
     }
     
-    // ИЕсли есть фильтры ИЛИ ограничение глубины, создаем FilteredTreeBuilder
-    if (useFilters || maxDepth > 0) {
+    // ИСПРАВЛЕНИЕ: проверяем GitHub URL перед другими условиями
+    if (path.find("github.com") != std::string::npos) {
+        return std::make_unique<GitHubTreeBuilder>(path, maxDepth);
+    }
+    
+    // ПРИОРИТЕТ 1: Если есть фильтры - создаем FilteredTreeBuilder
+    if (useFilters) {
         auto builder = std::make_unique<FilteredTreeBuilder>(path);
         if (maxDepth > 0) {
             builder->setMaxDepth(maxDepth);
@@ -25,9 +30,13 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
         return builder;
     }
     
-    // Многопоточность только для локальных путей (не GitHub)
-    if ((threadCount > 1 || threadCount == 0) && 
-        path.find("github.com") == std::string::npos) {
+    // ПРИОРИТЕТ 2: Если есть ограничение глубины - создаем DepthViewTreeBuilder
+    if (maxDepth > 0) {
+        return std::make_unique<DepthViewTreeBuilder>(path, maxDepth);
+    }
+    
+    // ПРИОРИТЕТ 3: Многопоточность
+    if ((threadCount > 1 || threadCount == 0)) {
         return std::make_unique<MultiThreadedTreeBuilder>(path, threadCount);
     }
     
@@ -35,7 +44,10 @@ std::unique_ptr<TreeBuilder> BuilderFactory::createBuilder(
 }
 
 std::unique_ptr<TreeBuilder> BuilderFactory::create(const CommandLineOptions& options) {
-    return createBuilder(options.path, 
+    // ИСПРАВЛЕНИЕ: для GitHub используем githubUrl вместо path
+    std::string targetPath = options.isGitHub ? options.githubUrl : options.path;
+    
+    return createBuilder(targetPath, 
                         options.useJSON,
                         options.maxDepth,
                         options.useFilteredBuilder,
@@ -43,7 +55,6 @@ std::unique_ptr<TreeBuilder> BuilderFactory::create(const CommandLineOptions& op
 }
 
 void BuilderFactory::applySettings(const CommandLineOptions& options, TreeBuilder& builder) {
-    // Установка глубины для различных типов билдеров
     if (options.maxDepth > 0) {
         if (auto depthBuilder = dynamic_cast<DepthViewTreeBuilder*>(&builder)) {
             depthBuilder->setMaxDepth(options.maxDepth);

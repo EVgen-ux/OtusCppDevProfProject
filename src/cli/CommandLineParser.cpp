@@ -5,6 +5,7 @@
 
 bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder) {
     options.useFilteredBuilder = false;
+    options.isGitHub = false; // Инициализируем
     
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -74,12 +75,14 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
         } else if (arg == "-g" || arg == "--github") {
             if (i + 1 < argc) {
                 options.githubUrl = argv[++i];
-                options.isGitHub = true;
+                options.isGitHub = true; // Устанавливаем флаг GitHub
+                options.path = options.githubUrl; // Используем URL как путь
             }
         } else if (arg == "--github-depth") {
             if (i + 1 < argc) {
                 try {
                     options.githubDepth = std::stoul(argv[++i]);
+                    options.maxDepth = options.githubDepth; // Устанавливаем глубину
                 } catch (...) {
                     std::cerr << "Ошибка: неверный формат глубины GitHub" << std::endl;
                     return false;
