@@ -8,6 +8,7 @@ struct CommandLineOptions {
     bool showHidden = false;
     bool showHelp = false;
     bool showVersion = false;
+    bool noColor = false;
     size_t maxDepth = 0;
     bool useJSON = false;
     std::string outputFile;

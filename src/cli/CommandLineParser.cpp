@@ -1,11 +1,15 @@
 #include "CommandLineParser.h"
 #include "FilteredTreeBuilder.h"
+#include "ColorManager.h"
+#include "FileSystem.h"
 #include <iostream>
 #include <algorithm>
+#include <cctype> 
+#include <string>
 
 bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder) {
     options.useFilteredBuilder = false;
-    options.isGitHub = false; // Инициализируем
+    options.isGitHub = false;
     
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -19,12 +23,17 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
         } else if (arg == "-a" || arg == "--all") {
             options.showHidden = true;
         } else if (arg == "--no-color") {
-            // Обработка отключения цветов
+            ColorManager::disableColors();
+            options.noColor = true;
         } else if (arg == "--json") {
             options.useJSON = true;
+            ColorManager::disableColors();
+            options.noColor = true;
         } else if (arg == "-o" || arg == "--output") {
             if (i + 1 < argc) {
                 options.outputFile = argv[++i];
+                ColorManager::disableColors();
+                options.noColor = true;
             } else {
                 std::cerr << "Ошибка: отсутствует имя файла для опции -o" << std::endl;
                 return false;
@@ -75,14 +84,14 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
         } else if (arg == "-g" || arg == "--github") {
             if (i + 1 < argc) {
                 options.githubUrl = argv[++i];
-                options.isGitHub = true; // Устанавливаем флаг GitHub
-                options.path = options.githubUrl; // Используем URL как путь
+                options.isGitHub = true;
+                options.path = options.githubUrl;
             }
         } else if (arg == "--github-depth") {
             if (i + 1 < argc) {
                 try {
                     options.githubDepth = std::stoul(argv[++i]);
-                    options.maxDepth = options.githubDepth; // Устанавливаем глубину
+                    options.maxDepth = options.githubDepth;
                 } catch (...) {
                     std::cerr << "Ошибка: неверный формат глубины GitHub" << std::endl;
                     return false;
@@ -100,71 +109,6 @@ bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& option
     }
     
     return true;
-}
-
-uint64_t CommandLineParser::parseSize(const std::string& sizeStr) {
-    if (sizeStr.empty()) return 0;
-    
-    std::string valueStr = sizeStr;
-    std::string unit;
-    
-    // Убираем пробелы
-    valueStr.erase(0, valueStr.find_first_not_of(" "));
-    valueStr.erase(valueStr.find_last_not_of(" ") + 1);
-    
-    // Ищем конец числа (цифры и точка)
-    size_t i = 0;
-    while (i < valueStr.length() && 
-           (std::isdigit(valueStr[i]) || valueStr[i] == '.')) {
-        i++;
-    }
-    
-    // Разделяем число и единицу измерения
-    if (i < valueStr.length()) {
-        valueStr = sizeStr.substr(0, i);
-        unit = sizeStr.substr(i);
-        
-        // Убираем пробелы из unit
-        unit.erase(0, unit.find_first_not_of(" "));
-        unit.erase(unit.find_last_not_of(" ") + 1);
-    }
-    
-    try {
-        double value = std::stod(valueStr);
-        
-        // Приводим к верхнему регистру для удобства сравнения
-        std::string upperUnit = unit;
-        std::transform(upperUnit.begin(), upperUnit.end(), upperUnit.begin(), ::toupper);
-        
-        // Конвертируем в байты
-        if (upperUnit.empty() || upperUnit == "B") {
-            return static_cast<uint64_t>(value);
-        } else if (upperUnit == "KB") {
-            return static_cast<uint64_t>(value * 1024);
-        } else if (upperUnit == "MB") {
-            return static_cast<uint64_t>(value * 1024 * 1024);
-        } else if (upperUnit == "GB") {
-            return static_cast<uint64_t>(value * 1024 * 1024 * 1024);
-        } else if (upperUnit == "TB") {
-            return static_cast<uint64_t>(value * 1024 * 1024 * 1024 * 1024);
-        // } else if (upperUnit == "KIB") {
-        //     return static_cast<uint64_t>(value * 1000);
-        // } else if (upperUnit == "MIB") {
-        //     return static_cast<uint64_t>(value * 1000 * 1000);
-        // } else if (upperUnit == "GIB") {
-        //     return static_cast<uint64_t>(value * 1000 * 1000 * 1000);
-        // } else if (upperUnit == "TIB") {
-        //     return static_cast<uint64_t>(value * 1000 * 1000 * 1000 * 1000);
-        } else {
-            // Если единица не распознана, предполагаем байты
-            return static_cast<uint64_t>(value);
-        }
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка парсинга размера '" << sizeStr << "': " << e.what() << std::endl;
-    }
-    
-    return 0;
 }
 
 void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& builder) {
@@ -244,4 +188,69 @@ void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& b
             filteredBuilder->addNameFilter(options.excludeFilter, false);
         }
     }
+}
+
+uint64_t CommandLineParser::parseSize(const std::string& sizeStr) {
+    if (sizeStr.empty()) return 0;
+    
+    std::string valueStr = sizeStr;
+    std::string unit;
+    
+    // Убираем пробелы
+    valueStr.erase(0, valueStr.find_first_not_of(" "));
+    valueStr.erase(valueStr.find_last_not_of(" ") + 1);
+    
+    // Ищем конец числа (цифры и точка)
+    size_t i = 0;
+    while (i < valueStr.length() && 
+           (std::isdigit(valueStr[i]) || valueStr[i] == '.')) {
+        i++;
+    }
+    
+    // Разделяем число и единицу измерения
+    if (i < valueStr.length()) {
+        valueStr = sizeStr.substr(0, i);
+        unit = sizeStr.substr(i);
+        
+        // Убираем пробелы из unit
+        unit.erase(0, unit.find_first_not_of(" "));
+        unit.erase(unit.find_last_not_of(" ") + 1);
+    }
+    
+    try {
+        double value = std::stod(valueStr);
+        
+        // Приводим к верхнему регистру для удобства сравнения
+        std::string upperUnit = unit;
+        std::transform(upperUnit.begin(), upperUnit.end(), upperUnit.begin(), ::toupper);
+        
+        // Конвертируем в байты
+        if (upperUnit.empty() || upperUnit == "B") {
+            return static_cast<uint64_t>(value);
+        } else if (upperUnit == "KB") {
+            return static_cast<uint64_t>(value * 1024);
+        } else if (upperUnit == "MB") {
+            return static_cast<uint64_t>(value * 1024 * 1024);
+        } else if (upperUnit == "GB") {
+            return static_cast<uint64_t>(value * 1024 * 1024 * 1024);
+        } else if (upperUnit == "TB") {
+            return static_cast<uint64_t>(value * 1024 * 1024 * 1024 * 1024);
+        } else if (upperUnit == "KIB") {
+            return static_cast<uint64_t>(value * 1000);
+        } else if (upperUnit == "MIB") {
+            return static_cast<uint64_t>(value * 1000 * 1000);
+        } else if (upperUnit == "GIB") {
+            return static_cast<uint64_t>(value * 1000 * 1000 * 1000);
+        } else if (upperUnit == "TIB") {
+            return static_cast<uint64_t>(value * 1000 * 1000 * 1000 * 1000);
+        } else {
+            // Если единица не распознана, предполагаем байты
+            return static_cast<uint64_t>(value);
+        }
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Ошибка парсинга размера '" << sizeStr << "': " << e.what() << std::endl;
+    }
+    
+    return 0;
 }
