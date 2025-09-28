@@ -1,8 +1,8 @@
 #pragma once
 #include "TreeBuilder.h"
-#include <sstream>
-#include <iomanip>
+#include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
 
 class JSONTreeBuilder : public TreeBuilder {
 public:
@@ -10,12 +10,13 @@ public:
     
     void buildTree(bool showHidden = false) override;
     void printTree() const override;
-    
     std::string getJSON() const;
-
-private:
-    std::string jsonOutput_;
     
-    void buildJSONTree();
-    std::string escapeJSONString(const std::string& str) const;
+private:
+    json jsonData_;
+    
+    json traverseDirectoryJSON(const std::filesystem::path& path, 
+                             bool showHidden,
+                             bool isRoot = false);
+    json fileInfoToJSON(const FileSystem::FileInfo& info);
 };

@@ -86,9 +86,17 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
 
 bool OutputManager::outputToFile(const std::string& filename, const TreeBuilder& builder, 
                                 const CommandLineOptions& options) {
+    bool wereColorsEnabled = ColorManager::areColorsEnabled();
+    if (wereColorsEnabled) {
+        ColorManager::disableColors();
+    }
+    
     std::ofstream outFile(filename);
     if (!outFile) {
         std::cerr << "Ошибка: не удалось открыть файл " << filename << " для записи" << std::endl;
+        if (wereColorsEnabled) {
+            ColorManager::enableColors();
+        }
         return false;
     }
 
@@ -97,6 +105,9 @@ bool OutputManager::outputToFile(const std::string& filename, const TreeBuilder&
             outFile << jsonBuilder->getJSON() << std::endl;
         } else {
             std::cerr << "Ошибка: JSON builder не доступен" << std::endl;
+            if (wereColorsEnabled) {
+                ColorManager::enableColors();
+            }
             return false;
         }
     } else {
@@ -109,7 +120,7 @@ bool OutputManager::outputToFile(const std::string& filename, const TreeBuilder&
             printStatistics(outFile, builder, options);
         }
     }
-    
+      
     std::cout << "Результат сохранен в файл: " << filename << std::endl;
     return true;
 }
