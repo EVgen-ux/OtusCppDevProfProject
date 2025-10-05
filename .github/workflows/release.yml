@@ -1,0 +1,47 @@
+name: 'Build and Release DEB Package'
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libcurl4-openssl-dev
+
+    - name: Extract version from git tag
+      id: get_version
+      run: |
+        # Просто убираем 'v' из начала тега
+        VERSION="${GITHUB_REF#refs/tags/v}"
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Building version: ${VERSION}"
+
+    - name: Configure with version from tag
+      run: |
+        cmake -B build -DPROJECT_VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+    - name: Build project
+      run: |
+        cmake --build build
+
+    - name: Create DEB package
+      run: |
+        cd build
+        cpack -G DEB
+
+    - name: Upload to GitHub Releases
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/tree-utility-*.deb
