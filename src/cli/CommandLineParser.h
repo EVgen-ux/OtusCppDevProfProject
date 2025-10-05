@@ -27,7 +27,7 @@ struct CommandLineOptions {
 
 class CommandLineParser {
 public:
-    static bool parse(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder);
+    static bool parser(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder);
     static void applyFilters(CommandLineOptions& options, TreeBuilder& builder);
 private:
     static uint64_t parseSize(const std::string& sizeStr);

@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<TreeBuilder> builder;
     
     // Парсинг аргументов командной строки
-    if (!CommandLineParser::parse(argc, argv, options, builder)) {
+    if (!CommandLineParser::parser(argc, argv, options, builder)) {
         if (argc > 1) {
             std::string firstArg = argv[1];
             if (firstArg == "-h" || firstArg == "--help") {

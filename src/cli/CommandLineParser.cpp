@@ -7,7 +7,7 @@
 #include <cctype> 
 #include <string>
 
-bool CommandLineParser::parse(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder) {
+bool CommandLineParser::parser(int argc, char* argv[], CommandLineOptions& options, std::unique_ptr<TreeBuilder>& builder) {
     options.useFilteredBuilder = false;
     options.isGitHub = false;
     
