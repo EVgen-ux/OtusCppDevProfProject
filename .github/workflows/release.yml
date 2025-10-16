@@ -9,6 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: write
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -23,7 +26,6 @@ jobs:
     - name: Extract version from git tag
       id: get_version
       run: |
-        # Извлекаем версию из тега (убираем 'v' в начале)
         VERSION="${GITHUB_REF#refs/tags/v}"
         echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
         echo "Building version: ${VERSION}"
@@ -43,11 +45,8 @@ jobs:
         ls -la *.deb
 
     - name: Upload to GitHub Releases
-      uses: softprops/action-gh-release@v1
+      uses: ncipollo/release-action@v1
       with:
-        files: |
-          build/*.deb
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref_name }}
+        artifacts: "build/*.deb"
+        token: ${{ secrets.GITHUB_TOKEN }}
