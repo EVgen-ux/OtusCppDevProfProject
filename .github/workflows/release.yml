@@ -8,45 +8,53 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libcurl4-openssl-dev
+      
+      - name: Extract version from git tag
+        id: get_version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION}"
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential libcurl4-openssl-dev
-
-    - name: Extract version from git tag
-      id: get_version
-      run: |
-        VERSION="${GITHUB_REF#refs/tags/v}"
-        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Building version: ${VERSION}"
-
-    - name: Configure with version from tag
-      run: |
-        cmake -B build -DPROJECT_VERSION="${{ steps.get_version.outputs.VERSION }}"
-
-    - name: Build project
-      run: |
-        cmake --build build
-
-    - name: Create DEB package
-      run: |
-        cd build
-        cpack -G DEB
-        ls -la *.deb
-
-    - name: Upload to GitHub Releases
-      uses: ncipollo/release-action@v1
-      with:
-        tag: ${{ github.ref_name }}
-        artifacts: "build/*.deb"
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure with version from tag
+        run: cmake -B build -DPROJECT_VERSION="${{ steps.get_version.outputs.VERSION }}"
+      
+      - name: Build project
+        run: cmake --build build
+      
+      - name: Create DEB package
+        run: |
+          cd build
+          cpack -G DEB
+      
+      - name: List generated DEB files
+        run: ls -la ./build/*.deb
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+      
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/tree-utility-${{ steps.get_version.outputs.VERSION }}-Linux.deb
+          asset_name: tree-utility-${{ steps.get_version.outputs.VERSION }}-Linux.deb
+          asset_content_type: application/vnd.debian.binary-package
