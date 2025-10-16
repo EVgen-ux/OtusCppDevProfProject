@@ -23,7 +23,7 @@ jobs:
     - name: Extract version from git tag
       id: get_version
       run: |
-        # Просто убираем 'v' из начала тега
+        # Извлекаем версию из тега (убираем 'v' в начале)
         VERSION="${GITHUB_REF#refs/tags/v}"
         echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
         echo "Building version: ${VERSION}"
@@ -40,8 +40,14 @@ jobs:
       run: |
         cd build
         cpack -G DEB
+        ls -la *.deb
 
     - name: Upload to GitHub Releases
       uses: softprops/action-gh-release@v1
       with:
-        files: build/tree-utility-*.deb
+        files: |
+          build/*.deb
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
