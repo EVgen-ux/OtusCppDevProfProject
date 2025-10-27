@@ -4,7 +4,7 @@
 #include <iomanip>
 
 FilteredTreeBuilder::FilteredTreeBuilder(const std::string& rootPath) 
-    : TreeBuilder(rootPath), maxDepth_(0), currentDepth_(0) {}
+    : TreeBuilder(rootPath), maxDepth_(0), currentDepth_(0), directoriesOnly_(false) {}
 
 void FilteredTreeBuilder::addSizeFilter(uint64_t size, const std::string& operation) {
     Filter filter;
@@ -87,6 +87,10 @@ void FilteredTreeBuilder::setMaxDepth(size_t maxDepth) {
     maxDepth_ = maxDepth;
 }
 
+void FilteredTreeBuilder::setDirectoriesOnly(bool directoriesOnly) {
+    directoriesOnly_ = directoriesOnly;
+}
+
 void FilteredTreeBuilder::clearFilters() {
     filters_.clear();
 }
@@ -103,15 +107,22 @@ void FilteredTreeBuilder::buildTree(bool showHidden) {
 }
 
 bool FilteredTreeBuilder::shouldIncludeEntry(const fs::path& path, const FileSystem::FileInfo& info) const {
+    // Если включен режим "только директории", исключаем файлы
+    if (directoriesOnly_ && !info.isDirectory) {
+        return false;
+    }
+
     // Если фильтров нет, включаем все
     if (filters_.empty()) {
         return true;
     }
 
+    // Для директорий всегда возвращаем true (чтобы можно было их обходить)
     if (info.isDirectory) {
         return true;
     }
 
+    // Для файлов применяем все фильтры
     return matchesAllFilters(info);
 }
 

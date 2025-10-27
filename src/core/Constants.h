@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace constants {
-    const std::string VERSION = "2.0.0";
+    const std::string VERSION = "0.2";
     const std::string AUTHOR = "EVgen-ux";
     
     // Символы для отрисовки дерева

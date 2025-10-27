@@ -17,6 +17,7 @@ struct CommandLineOptions {
     std::string githubUrl;
     size_t githubDepth = 3;
     size_t threadCount = 1;
+    bool directoriesOnly = false; 
     
     // Фильтры
     std::string sizeFilter;

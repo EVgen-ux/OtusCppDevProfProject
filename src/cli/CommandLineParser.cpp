@@ -22,6 +22,9 @@ bool CommandLineParser::parser(int argc, char* argv[], CommandLineOptions& optio
             return false;
         } else if (arg == "-a" || arg == "--all") {
             options.showHidden = true;
+        } else if (arg == "-D" || arg == "--directories-only") {
+            options.directoriesOnly = true;
+            options.useFilteredBuilder = true;
         } else if (arg == "--no-color") {
             ColorManager::disableColors();
             options.noColor = true;
@@ -115,6 +118,12 @@ void CommandLineParser::applyFilters(CommandLineOptions& options, TreeBuilder& b
     if (!options.useFilteredBuilder) return;
     
     if (auto filteredBuilder = dynamic_cast<FilteredTreeBuilder*>(&builder)) {
+        // Фильтр только директорий
+        if (options.directoriesOnly) {
+            filteredBuilder->setDirectoriesOnly(true);
+            std::cout << "Режим: отображаются только директории" << std::endl;
+        }
+        
         // Фильтр по размеру
         if (!options.sizeFilter.empty()) {
             std::string sizeStr = options.sizeFilter;

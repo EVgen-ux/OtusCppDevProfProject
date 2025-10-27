@@ -1,7 +1,5 @@
 #include "OutputManager.h"
 #include "JSONTreeBuilder.h"
-//#include "FileSystem.h"
-//#include "Constants.h"
 #include <iostream>
 
 void OutputManager::printHelp() {
@@ -13,6 +11,7 @@ void OutputManager::printHelp() {
     std::cout << "  -a, --all           Показать скрытые файлы и папки" << std::endl;
     std::cout << "  -v, --version       Показать версию" << std::endl;
     std::cout << "  -L, --level N       Ограничить глубину дерева N уровнями" << std::endl;
+    std::cout << "  -D, --directories-only Показать только директории" << std::endl;  
     std::cout << "  -s, --size OP SIZE  Фильтр по размеру (>, <, ==, >=, <=)" << std::endl;
     std::cout << "  -d, --date OP DATE  Фильтр по дате (>, <, ==), формат: YYYY-MM-DD" << std::endl;
     std::cout << "  -n, --name PATTERN  Включить файлы по шаблону имени" << std::endl;
@@ -46,6 +45,10 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
                                    const CommandLineOptions& options) {
     output << std::endl;
     output << "Статистика:" << std::endl;
+
+    if (options.directoriesOnly) {
+        output << "  Режим: только директории" << std::endl;
+    }
     
     if (options.isGitHub) {
         auto displayStats = builder.getDisplayStatistics();

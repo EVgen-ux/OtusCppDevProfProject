@@ -13,6 +13,7 @@ public:
     void addDateFilter(const std::string& date, const std::string& operation = ">");
     void addNameFilter(const std::string& pattern, bool include = true);
     void setMaxDepth(size_t maxDepth);
+    void setDirectoriesOnly(bool directoriesOnly);
     void clearFilters();
     
     void buildTree(bool showHidden = false) override;
@@ -25,11 +26,13 @@ private:
         std::chrono::system_clock::time_point dateValue;
         std::regex namePattern;
         bool include = true;
+        bool directoriesOnly_ = false;
     };
     
     std::vector<Filter> filters_;
     size_t maxDepth_;
     size_t currentDepth_;
+    bool directoriesOnly_ = false;
     
     void traverseDirectory(const std::filesystem::path& path, 
                           const std::string& prefix, 
