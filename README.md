@@ -48,9 +48,8 @@ git clone https://github.com/EVgen-ux/OtusCppDevProfProject.git
 ## Установка
 
 ```
-sudo dpkg -i   tree-utility-0.X-Linux.deb 
+sudo dpkg -i   tree-utility.deb 
 ```
-(где Х - номер релиза)
 
 ## Запуск
 

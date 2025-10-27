@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(TreeUtility VERSION 0.1 DESCRIPTION "Advanced directory tree utility")
+project(TreeUtility VERSION 0.2 DESCRIPTION "Advanced directory tree utility")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,14 +42,15 @@ install(TARGETS tree-utility DESTINATION bin)
 set(CPACK_PACKAGE_NAME "tree-utility")
 set(CPACK_PACKAGE_VENDOR "TreeUtility Team")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Advanced directory tree utility")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VERSION "0.2") 
 set(CPACK_PACKAGE_CONTACT "maintainer@example.com")
+
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "TreeUtility Maintainer <maintainer@example.com>")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libcurl4, libc6, libstdc++6")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
-set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-Linux")
-set(CPACK_GENERATOR "DEB")
 
+set(CPACK_DEBIAN_FILE_NAME "tree-utility.deb")
+
+set(CPACK_GENERATOR "DEB")
 include(CPack)
