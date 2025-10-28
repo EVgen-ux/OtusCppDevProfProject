@@ -1,5 +1,6 @@
 #include "OutputManager.h"
 #include "JSONTreeBuilder.h"
+#include "MultiThreadedTreeBuilder.h"
 #include <iostream>
 
 void OutputManager::printHelp() {
@@ -46,12 +47,15 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
     output << std::endl;
     output << "Статистика:" << std::endl;
 
+    auto displayStats = builder.getDisplayStatistics();
+    output << "  Время построения: " << displayStats.buildTimeMicroseconds 
+           << " мкс (" << displayStats.buildTimeMicroseconds / 1000.0 << " мс)" << std::endl;
+    
     if (options.directoriesOnly) {
         output << "  Режим: только директории" << std::endl;
     }
     
     if (options.isGitHub) {
-        auto displayStats = builder.getDisplayStatistics();
         output << "  Директорий: " << displayStats.displayedDirectories << std::endl;
         output << "  Файлов: " << displayStats.displayedFiles << std::endl;
         output << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
@@ -62,7 +66,6 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
         }
     }
     else if (options.maxDepth > 0) {
-        auto displayStats = builder.getDisplayStatistics();
         output << "  Директорий: " << displayStats.displayedDirectories << std::endl;
         output << "  Файлов: " << displayStats.displayedFiles << std::endl;
         output << "  Общий размер: " << FileSystem::formatSizeBothSystems(displayStats.displayedSize) << std::endl;
@@ -76,7 +79,6 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
         output << "  Общий размер: " << FileSystem::formatSizeBothSystems(stats.totalSize) << std::endl;
     }
     
-    auto displayStats = builder.getDisplayStatistics();
     if (displayStats.hiddenObjects > 0 && !options.showHidden) {
         output << "  В каталоге есть скрытые объекты: " << displayStats.hiddenObjects 
                << " (используйте -a для показа)" << std::endl;
@@ -84,6 +86,10 @@ void OutputManager::printStatistics(std::ostream& output, const TreeBuilder& bui
     
     if (options.useFilteredBuilder) {
         output << "  (Применены фильтры)" << std::endl;
+    }
+    
+    if (auto multiThreadedBuilder = dynamic_cast<const MultiThreadedTreeBuilder*>(&builder)) {
+        output << "  (Многопоточный режим)" << std::endl;
     }
 }
 
@@ -118,13 +124,17 @@ bool OutputManager::outputToFile(const std::string& filename, const TreeBuilder&
         for (const auto& line : treeLines) {
             outFile << line << std::endl;
         }
-        
-        if (!options.useJSON) {
-            printStatistics(outFile, builder, options);
-        }
     }
-      
+    
+    if (wereColorsEnabled) {
+        ColorManager::enableColors();
+    }
+
     std::cout << "Результат сохранен в файл: " << filename << std::endl;
+    if (!options.useJSON) {
+        printStatistics(std::cout, builder, options);
+    }
+    
     return true;
 }
 

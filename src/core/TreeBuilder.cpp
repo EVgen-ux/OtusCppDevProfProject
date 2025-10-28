@@ -8,6 +8,8 @@ namespace fs = std::filesystem;
 TreeBuilder::TreeBuilder(const std::string& rootPath) : rootPath_(rootPath) {}
 
 void TreeBuilder::buildTree(bool showHidden) {
+    auto startTime = std::chrono::high_resolution_clock::now(); 
+    
     treeLines_.clear();
     stats_ = Statistics{0, 0, 0};
     displayStats_ = DisplayStatistics{};
@@ -15,6 +17,10 @@ void TreeBuilder::buildTree(bool showHidden) {
 
     treeLines_.push_back(ColorManager::getDirNameColor() + "[DIR]" + ColorManager::getReset());
     traverseDirectory(rootPath_, "", true, showHidden, true);
+    
+    auto endTime = std::chrono::high_resolution_clock::now();
+    displayStats_.buildTimeMicroseconds = 
+        std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
 }
 
 void TreeBuilder::traverseDirectory(const fs::path& path, 

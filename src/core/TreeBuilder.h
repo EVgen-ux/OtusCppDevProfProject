@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <chrono>
 #include "FileSystem.h"
 #include "ColorManager.h"
 
@@ -20,9 +21,11 @@ public:
         size_t hiddenByDepth = 0;
         size_t hiddenObjects = 0;
         int apiRequests = 0; 
+        uint64_t buildTimeMicroseconds = 0;
 
         DisplayStatistics() : Statistics(), displayedFiles(0), displayedDirectories(0), 
-                         displayedSize(0), hiddenByDepth(0), hiddenObjects(0), apiRequests(0) {}
+                         displayedSize(0), hiddenByDepth(0), hiddenObjects(0), apiRequests(0),
+                         buildTimeMicroseconds(0) {}
     };
     
     explicit TreeBuilder(const std::string& rootPath);
@@ -33,6 +36,7 @@ public:
     virtual Statistics getStatistics() const;
     virtual DisplayStatistics getDisplayStatistics() const;
     virtual const std::vector<std::string>& getTreeLines() const;
+    virtual uint64_t getBuildTimeMicroseconds() const { return displayStats_.buildTimeMicroseconds; } 
     
 protected:
     std::filesystem::path rootPath_;
